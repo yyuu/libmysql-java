@@ -1,5 +1,6 @@
 /*
  Copyright  2002-2007 MySQL AB, 2008 Sun Microsystems
+ All rights reserved. Use is subject to license terms.
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of version 2 of the GNU General Public License as
@@ -329,7 +330,7 @@ public class NonRegisteringDriver implements java.sql.Driver {
 
 		return (java.sql.Connection) java.lang.reflect.Proxy.newProxyInstance(this
 				.getClass().getClassLoader(),
-				new Class[] { java.sql.Connection.class }, proxyBal);
+				new Class[] { com.mysql.jdbc.Connection.class }, proxyBal);
 	}
 
 	protected java.sql.Connection connectReplicationConnection(String url, Properties info)

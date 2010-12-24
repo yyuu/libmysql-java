@@ -1,5 +1,6 @@
 /*
  Copyright  2002-2007 MySQL AB, 2008-2009 Sun Microsystems
+ All rights reserved. Use is subject to license terms.
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of version 2 of the GNU General Public License as
@@ -723,7 +724,7 @@ public class StatementImpl implements Statement {
 							this.timeoutInMillis != 0
 							&& locallyScopedConn.versionMeetsMinimum(5, 0, 0)) {
 						timeoutTask = new CancelTask(this);
-						ConnectionImpl.getCancelTimer().schedule(timeoutTask,
+						locallyScopedConn.getCancelTimer().schedule(timeoutTask,
 								this.timeoutInMillis);
 					}
 
@@ -1016,7 +1017,7 @@ public class StatementImpl implements Statement {
 							individualStatementTimeout != 0
 							&& locallyScopedConn.versionMeetsMinimum(5, 0, 0)) {
 						timeoutTask = new CancelTask(this);
-						ConnectionImpl.getCancelTimer().schedule(timeoutTask,
+						locallyScopedConn.getCancelTimer().schedule(timeoutTask,
 								individualStatementTimeout);
 					}
 					
@@ -1152,7 +1153,7 @@ public class StatementImpl implements Statement {
 					individualStatementTimeout != 0
 					&& locallyScopedConn.versionMeetsMinimum(5, 0, 0)) {
 				timeoutTask = new CancelTask((StatementImpl)batchStmt);
-				ConnectionImpl.getCancelTimer().schedule(timeoutTask,
+				locallyScopedConn.getCancelTimer().schedule(timeoutTask,
 						individualStatementTimeout);
 			}
 			
@@ -1407,7 +1408,7 @@ public class StatementImpl implements Statement {
 						this.timeoutInMillis != 0
 						&& locallyScopedConn.versionMeetsMinimum(5, 0, 0)) {
 					timeoutTask = new CancelTask(this);
-					ConnectionImpl.getCancelTimer().schedule(timeoutTask,
+					locallyScopedConn.getCancelTimer().schedule(timeoutTask,
 							this.timeoutInMillis);
 				}
 
@@ -1627,7 +1628,7 @@ public class StatementImpl implements Statement {
 						this.timeoutInMillis != 0
 						&& locallyScopedConn.versionMeetsMinimum(5, 0, 0)) {
 					timeoutTask = new CancelTask(this);
-					ConnectionImpl.getCancelTimer().schedule(timeoutTask,
+					locallyScopedConn.getCancelTimer().schedule(timeoutTask,
 							this.timeoutInMillis);
 				}
 

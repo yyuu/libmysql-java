@@ -1,23 +1,26 @@
 /*
  Copyright  2002-2007 MySQL AB, 2008 Sun Microsystems
+ All rights reserved. Use is subject to license terms.
 
- This program is free software; you can redistribute it and/or modify
- it under the terms of version 2 of the GNU General Public License as 
- published by the Free Software Foundation.
+  The MySQL Connector/J is licensed under the terms of the GPL,
+  like most MySQL Connectors. There are special exceptions to the
+  terms and conditions of the GPL as it is applied to this software,
+  see the FLOSS License Exception available on mysql.com.
 
- There are special exceptions to the terms and conditions of the GPL 
- as it is applied to this software. View the full text of the 
- exception in file EXCEPTIONS-CONNECTOR-J in the directory of this 
- software distribution.
+  This program is free software; you can redistribute it and/or
+  modify it under the terms of the GNU General Public License as
+  published by the Free Software Foundation; version 2 of the
+  License.
 
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+  This program is distributed in the hope that it will be useful,  
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
 
- You should have received a copy of the GNU General Public License
- along with this program; if not, write to the Free Software
- Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+  02110-1301 USA
 
 
 
@@ -76,6 +79,7 @@ import com.mysql.jdbc.SQLError;
 import com.mysql.jdbc.ServerPreparedStatement;
 import com.mysql.jdbc.StatementImpl;
 import com.mysql.jdbc.StatementInterceptor;
+import com.mysql.jdbc.StatementInterceptorV2;
 import com.mysql.jdbc.exceptions.MySQLStatementCancelledException;
 import com.mysql.jdbc.exceptions.MySQLTimeoutException;
 
@@ -5327,6 +5331,10 @@ public class StatementRegressionTest extends BaseTestCase {
 				
 				return false;
 			}
+
+			public int getBytesSize() throws SQLException {
+				return 0;
+			}
 		};
 	}
 	
@@ -5835,6 +5843,64 @@ public class StatementRegressionTest extends BaseTestCase {
 			closeMemberJDBCResources();
 		}
 	}
+	public void testBug48172() throws Exception {
+		createTable(
+				"testBatchInsert",
+				"(a INT PRIMARY KEY AUTO_INCREMENT)");
+		Connection rewriteConn = getConnectionWithProps("rewriteBatchedStatements=true,dumpQueriesOnException=true");
+		assertEquals("0", getSingleIndexedValueWithQuery(rewriteConn, 2,
+			"SHOW SESSION STATUS LIKE 'Com_insert'").toString());
+		
+		
+		this.pstmt = rewriteConn.prepareStatement("INSERT INTO testBatchInsert VALUES (?)");
+		this.pstmt.setNull(1, java.sql.Types.INTEGER);
+		this.pstmt.addBatch();
+		this.pstmt.setNull(1, java.sql.Types.INTEGER);
+		this.pstmt.addBatch();
+		this.pstmt.setNull(1, java.sql.Types.INTEGER);
+		this.pstmt.addBatch();
+		this.pstmt.executeBatch();
+		
+		assertEquals("1", getSingleIndexedValueWithQuery(rewriteConn, 2,
+			"SHOW SESSION STATUS LIKE 'Com_insert'").toString());
+		this.pstmt = rewriteConn.prepareStatement("INSERT INTO `testBatchInsert`VALUES (?)");
+		this.pstmt.setNull(1, java.sql.Types.INTEGER);
+		this.pstmt.addBatch();
+		this.pstmt.setNull(1, java.sql.Types.INTEGER);
+		this.pstmt.addBatch();
+		this.pstmt.setNull(1, java.sql.Types.INTEGER);
+		this.pstmt.addBatch();
+		this.pstmt.executeBatch();
+		
+		assertEquals("2", getSingleIndexedValueWithQuery(rewriteConn, 2,
+			"SHOW SESSION STATUS LIKE 'Com_insert'").toString());
+		
+		this.pstmt = rewriteConn.prepareStatement("INSERT INTO testBatchInsert VALUES(?)");
+		this.pstmt.setNull(1, java.sql.Types.INTEGER);
+		this.pstmt.addBatch();
+		this.pstmt.setNull(1, java.sql.Types.INTEGER);
+		this.pstmt.addBatch();
+		this.pstmt.setNull(1, java.sql.Types.INTEGER);
+		this.pstmt.addBatch();
+		this.pstmt.executeBatch();
+		
+		assertEquals("3", getSingleIndexedValueWithQuery(rewriteConn, 2,
+			"SHOW SESSION STATUS LIKE 'Com_insert'").toString());
+		
+		this.pstmt = rewriteConn.prepareStatement("INSERT INTO testBatchInsert VALUES\n(?)");
+		this.pstmt.setNull(1, java.sql.Types.INTEGER);
+		this.pstmt.addBatch();
+		this.pstmt.setNull(1, java.sql.Types.INTEGER);
+		this.pstmt.addBatch();
+		this.pstmt.setNull(1, java.sql.Types.INTEGER);
+		this.pstmt.addBatch();
+		this.pstmt.executeBatch();
+		
+		assertEquals("4", getSingleIndexedValueWithQuery(rewriteConn, 2,
+			"SHOW SESSION STATUS LIKE 'Com_insert'").toString());
+		
+	}
+	
 	
 	/**
 	 * Tests fix for Bug#41532 - regression in performance for batched inserts when using ON DUPLICATE KEY UPDATE
@@ -5846,7 +5912,7 @@ public class StatementRegressionTest extends BaseTestCase {
 						+ " INTEGER, S1 VARCHAR(100), S2 VARCHAR(100), S3 VARCHAR(100), D1 DATETIME, D2 DATETIME, D3 DATETIME, N1 DECIMAL(28,6), N2 DECIMAL(28,6), N3 DECIMAL(28,6), UNIQUE KEY"
 						+ " UNIQUE_KEY_TEST_DUPLICATE (ID) )");
 
-		int numTests = 1000;
+		int numTests = 5000;
 		Connection rewriteConn = getConnectionWithProps("rewriteBatchedStatements=true,dumpQueriesOnException=true");
 
 		assertEquals("0", getSingleIndexedValueWithQuery(rewriteConn, 2,
@@ -6110,11 +6176,20 @@ public class StatementRegressionTest extends BaseTestCase {
 		public ResultSetInternalMethods preProcess(String sql,
 				com.mysql.jdbc.Statement interceptedStatement,
 				com.mysql.jdbc.Connection connection) throws SQLException {
-			if (sql.equals(prevSql))
-				throw new RuntimeException("Previous statement matched current: " + sql);
-			prevSql = sql;
-			ParameterBindings b = ((com.mysql.jdbc.PreparedStatement)interceptedStatement).getParameterBindings();
-			vals.add(new Integer(b.getInt(1)));
+			String asSql = sql;
+			
+			if (interceptedStatement instanceof com.mysql.jdbc.PreparedStatement) {
+				asSql = interceptedStatement.toString();
+				int firstColon = asSql.indexOf(":");
+				asSql = asSql.substring(firstColon + 2);
+			
+			
+				if (asSql.equals(prevSql))
+					throw new RuntimeException("Previous statement matched current: " + sql);
+				prevSql = asSql;
+				ParameterBindings b = ((com.mysql.jdbc.PreparedStatement)interceptedStatement).getParameterBindings();
+				vals.add(new Integer(b.getInt(1)));
+			}
 			return null;
 		}
 	}
@@ -6280,5 +6355,67 @@ public class StatementRegressionTest extends BaseTestCase {
 		} finally {
 			closeMemberJDBCResources();
 		}
+	}
+	
+	public void testReversalOfScanFlags() throws Exception {
+		createTable("testReversalOfScanFlags", "(field1 int)");
+		this.stmt.executeUpdate("INSERT INTO testReversalOfScanFlags VALUES (1),(2),(3)");
+		
+		Connection scanningConn = getConnectionWithProps(
+				"statementInterceptors=" + ScanDetectingInterceptor.class.getName());
+		
+		try {
+			ScanDetectingInterceptor.watchForScans = true;
+			scanningConn.createStatement().executeQuery("SELECT field1 FROM testReversalOfScanFlags");
+			assertTrue(ScanDetectingInterceptor.hasSeenScan);
+			assertFalse(ScanDetectingInterceptor.hasSeenBadIndex);
+		} finally {
+			scanningConn.close();
+		}
+		
+	}
+	public static class ScanDetectingInterceptor implements StatementInterceptorV2 {
+		static boolean watchForScans = false;
+		static boolean hasSeenScan = false;
+		static boolean hasSeenBadIndex = false;
+		
+		public void destroy() {
+			
+		}
+
+		public boolean executeTopLevelOnly() {
+			return false;
+		}
+
+		public void init(com.mysql.jdbc.Connection conn, Properties props)
+				throws SQLException {
+			
+		}
+
+		public ResultSetInternalMethods postProcess(String sql,
+				com.mysql.jdbc.Statement interceptedStatement,
+				ResultSetInternalMethods originalResultSet,
+				com.mysql.jdbc.Connection connection, int warningCount,
+				boolean noIndexUsed, boolean noGoodIndexUsed,
+				SQLException statementException) throws SQLException {
+			if (watchForScans) {
+				if (noIndexUsed) {
+					hasSeenScan = true;
+				} 
+				
+				if (noGoodIndexUsed) {
+					hasSeenBadIndex = true;
+				}
+			}
+			
+			return null;
+		}
+
+		public ResultSetInternalMethods preProcess(String sql,
+				com.mysql.jdbc.Statement interceptedStatement,
+				com.mysql.jdbc.Connection connection) throws SQLException {
+			return null;
+		}
+		
 	}
 }

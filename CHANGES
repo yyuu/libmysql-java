@@ -1,5 +1,77 @@
 # Changelog
 # $Id$
+
+02-18-10 - Version 5.1.12
+
+    - NO_INDEX_USED and NO_GOOD_INDEX used were only being set when profileSQL 
+      was set to "true", and in some cases their values were reversed.
+
+    - Fix for Bug#51022 - conn.getMetaData().getProcedures("schema",null,"%"); 
+      returns all stored procedures from all databases and not only for given 
+      one.
+	
+    - Fixed Bug#50538 - ${svn.revno} shows up in DBMD.getDriverVersion().
+    
+    - Removed usage of timestamp nanoseconds in PreparedStatement.setTimestamp(),
+      as long as Bug#50774 exists in the server and there's no real support
+      for nanos/micros in TIMESTAMPs, avoid the performance regression usage of 
+      them causes.
+    
+01-20-10 - Version 5.1.11
+ 
+    - Fix for BUG#50288 - NullPointerException possible during invalidateCurrentConnection() for load-balanced
+      connections.
+ 
+    - Fix for BUG#49745 - deleteRow() for updatable result sets can cause full table scan because escaped hex 
+      values are used for primary key identifiers.
+ 
+    - Fix for BUG#49607 - Provide Connection context in ExceptionInterceptor.
+ 
+    - Fix for BUG#48605 - Ping leaves closed connections in liveConnections, causing subsequent Exceptions when
+      that connection is used.
+ 
+    - Fix for BUG#48442 - Load-balanced Connection object returns inconsistent results for hashCode() and equals()
+      dependent upon state of underlying connections.
+ 
+    - Fix for BUG#48172 - Batch rewrite requires space immediately after "VALUES"
+    
+    - Statement Interceptors didn't completely intercept server-side prepared statements.
+    
+    - Fix for BUG#48486 Cannot use load balanced connections with MysqlConnectionPoolDataSource.
+    
+    - Fix for Bug#32525 - "noDatetimeStringSync" doesn't work for server-side prepared statements. Now it does.
+
+    - Hooked up exception interceptors so they get called now.
+    
+    - Rev'd the statement interceptor interface to pass on some server flags, warning counts and errors. See 
+      the com.mysql.jdbc.StatementInteceptorsV2 interface for more details. The driver will create adaptors to
+      transparently convert older implementations to the newer interface at runtime.
+      
+    - Statement Interceptors are now enabled at connection instantiation, but 
+      can not return result sets (they will be ignored)  until the connection 
+      has bootstrapped itself. If during the init() method your interceptor 
+      requires access to the connection itself, it should ensure that methods 
+      that might throw exceptions if the connection is closed should handle 
+      this in a robust manner.
+      
+    - "Replication" connections (those with URLs that start with 
+      jdbc:mysql:replication) now use a jdbc:mysql:loadbalance connection
+      under the hood for the slave "pool". This also means that one can set
+      load balancing properties such as "loadBalanceBlacklistTimeout" and
+      "loadBalanceStrategy" to choose a mechanism for balancing the load and
+      failover/fault tolerance strategy for the slave pool. This work was done
+      in order to fix Bug#49537.
+      
+    - Fixed Bug#36565 - permgen leak from java.util.Timer. Unfortunately no great
+      fix exists that lets us keep the timer shared amongst connection instances, so
+      instead it's lazily created if need be per-instance, and torn down when the 
+      connection is closed.
+      
+    - Fixed BUG#49700 - Connections from ConnectionPoolDataSource don't
+      maintain any values set with "sesssionVariables=...". This was a bug
+      in Connection.changeUser()/resetServerState(), we now resubmit the
+      session variables during the execution of these methods.
+    
 09-22-09 - Version 5.1.10
 
     - Fix for BUG#47494 - Non standard port numbers in the URL are not honored.

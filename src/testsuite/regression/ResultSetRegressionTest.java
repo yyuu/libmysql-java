@@ -1,5 +1,6 @@
 /*
  Copyright  2002-2007 MySQL AB, 2008 Sun Microsystems
+ All rights reserved. Use is subject to license terms.
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of version 2 of the GNU General Public License as
@@ -4971,5 +4972,41 @@ public class ResultSetRegressionTest extends BaseTestCase {
         
         this.rs = this.stmt.executeQuery("SELECT * FROM testtable_bincolumn WHERE bincolumn = unhex('"+pkValue2+"')");
         assertFalse(rs.next());
+	}
+	
+	public void testBug32525() throws Exception {
+		createTable("bug32525", "(field1 date, field2 timestamp)");
+		this.stmt.executeUpdate("INSERT INTO bug32525 VALUES ('0000-00-00', '0000-00-00 00:00:00')");
+		Connection noStringSyncConn = getConnectionWithProps("noDatetimeStringSync=true");
+		
+		try {
+			this.rs = ((com.mysql.jdbc.Connection) noStringSyncConn).serverPrepareStatement("SELECT field1, field2 FROM bug32525").executeQuery();
+			this.rs.next();
+			assertEquals("0000-00-00", this.rs.getString(1));
+			assertEquals("0000-00-00 00:00:00", this.rs.getString(2));
+		} finally {
+			noStringSyncConn.close();
+		}
+		
+	}
+	
+	public void testBug49797() throws Exception {
+		createTable("testBug49797", "(`Id` int(2) not null auto_increment, " +
+				"`abc` char(50) , " +
+				"PRIMARY KEY (`Id`)) ENGINE=MyISAM DEFAULT CHARSET=utf8");
+		this.stmt.executeUpdate("INSERT into testBug49797 VALUES (1,'1'),(2,'2'),(3,'3')");
+		assertEquals(3, getRowCount("testBug49797"));
+		
+		Statement updStmt = conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, 
+				ResultSet.CONCUR_UPDATABLE );
+		try {
+			this.rs = updStmt.executeQuery("SELECT * FROM testBug49797");
+			while(rs.next()) {
+				rs.deleteRow();
+			}
+			assertEquals(0, getRowCount("testBug49797"));
+		} finally {
+			updStmt.close();
+		}
 	}
 }

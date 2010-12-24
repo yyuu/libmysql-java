@@ -1,23 +1,26 @@
 /*
  Copyright  2007 MySQL AB, 2008 Sun Microsystems
+ All rights reserved. Use is subject to license terms.
 
- This program is free software; you can redistribute it and/or modify
- it under the terms of version 2 of the GNU General Public License as 
- published by the Free Software Foundation.
+  The MySQL Connector/J is licensed under the terms of the GPL,
+  like most MySQL Connectors. There are special exceptions to the
+  terms and conditions of the GPL as it is applied to this software,
+  see the FLOSS License Exception available on mysql.com.
 
- There are special exceptions to the terms and conditions of the GPL 
- as it is applied to this software. View the full text of the 
- exception in file EXCEPTIONS-CONNECTOR-J in the directory of this 
- software distribution.
+  This program is free software; you can redistribute it and/or
+  modify it under the terms of the GNU General Public License as
+  published by the Free Software Foundation; version 2 of the
+  License.
 
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+  This program is distributed in the hope that it will be useful,  
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
 
- You should have received a copy of the GNU General Public License
- along with this program; if not, write to the Free Software
- Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+  02110-1301 USA
  
  */
 
@@ -285,18 +288,37 @@ public class LoadBalancingConnectionProxy implements InvocationHandler, PingTarg
 			// remove from liveConnections
 			this.liveConnections.remove(this.connectionsToHostsMap
 					.get(this.currentConn));
+			Object mappedHost = this.connectionsToHostsMap.remove(this.currentConn);
+			if(mappedHost != null && this.hostsToListIndexMap.containsKey(mappedHost)){
+				int hostIndex = ((Integer) this.hostsToListIndexMap.get(mappedHost)).intValue();
+				// reset the statistics for the host
+				synchronized (this.responseTimes) {
+					this.responseTimes[hostIndex] = 0;
+				}
+			}
+		}
+	}
+	
+	private void closeAllConnections(){
+		synchronized (this) {
+			// close all underlying connections
+			Iterator allConnections = this.liveConnections.values()
+					.iterator();
+
+			while (allConnections.hasNext()) {
+				try{
+					((Connection) allConnections.next()).close();
+				} catch(SQLException e){}
+			}
+
+			if (!this.isClosed) {
+				this.balancer.destroy();
+			}
 			
-			int hostIndex = ((Integer) this.hostsToListIndexMap
-					.get(this.connectionsToHostsMap.get(this.currentConn)))
-					.intValue();
-
-			// reset the statistics for the host
-			synchronized (this.responseTimes) {
-				this.responseTimes[hostIndex] = 0;
-			}
-
-			this.connectionsToHostsMap.remove(this.currentConn);
-			}
+			this.liveConnections.clear();
+			this.connectionsToHostsMap.clear();
+		}
+	
 	}
 
 	/**
@@ -313,27 +335,15 @@ public class LoadBalancingConnectionProxy implements InvocationHandler, PingTarg
 			if (args[0] instanceof Proxy) {
 				return Boolean.valueOf((((Proxy)args[0]).equals(this)));
 			}
-			
-			return Boolean.valueOf(equals(args[0]));
+			return Boolean.valueOf(this.equals(args[0]));
+		}
+		
+		if ("hashCode".equals(methodName)) {
+			return new Integer(this.hashCode());
 		}
 		
 		if ("close".equals(methodName)) {
-			synchronized (this) {
-				// close all underlying connections
-				Iterator allConnections = this.liveConnections.values()
-						.iterator();
-
-				while (allConnections.hasNext()) {
-					((Connection) allConnections.next()).close();
-				}
-
-				if (!this.isClosed) {
-					this.balancer.destroy();
-				}
-				
-				this.liveConnections.clear();
-				this.connectionsToHostsMap.clear();
-			}
+			closeAllConnections();
 
 			return null;
 		}
@@ -410,7 +420,7 @@ public class LoadBalancingConnectionProxy implements InvocationHandler, PingTarg
 
 			return;
 		}
-
+		
 		Connection newConn = this.balancer.pickConnection(this,
 				Collections.unmodifiableList(this.hostList),
 				Collections.unmodifiableMap(this.liveConnections),
@@ -420,7 +430,9 @@ public class LoadBalancingConnectionProxy implements InvocationHandler, PingTarg
 		newConn.setTransactionIsolation(this.currentConn
 				.getTransactionIsolation());
 		newConn.setAutoCommit(this.currentConn.getAutoCommit());
+
 		this.currentConn = newConn;
+		
 	}
 
 	/**
@@ -439,7 +451,8 @@ public class LoadBalancingConnectionProxy implements InvocationHandler, PingTarg
 			String packageName = interfaces[i].getPackage().getName();
 
 			if ("java.sql".equals(packageName)
-					|| "javax.sql".equals(packageName)) {
+					|| "javax.sql".equals(packageName) 
+					|| "com.mysql.jdbc".equals(packageName)) {
 				return Proxy.newProxyInstance(toProxy.getClass()
 						.getClassLoader(), interfaces,
 						new ConnectionErrorFiringInvocationHandler(toProxy));
@@ -473,35 +486,59 @@ public class LoadBalancingConnectionProxy implements InvocationHandler, PingTarg
 	}
 
 	public synchronized void doPing() throws SQLException {
-		if(this.isGlobalBlacklistEnabled()){
-			SQLException se = null;
-			boolean foundHost = false;
-			synchronized(this){
-				for(Iterator i = this.hostList.iterator(); i.hasNext(); ){
-					String host = (String) i.next();
-					Connection conn = (Connection) this.liveConnections.get(host);
-					if(conn == null){
-						continue;
+		SQLException se = null;
+		boolean foundHost = false;
+
+		synchronized(this){
+			for(Iterator i = this.hostList.iterator(); i.hasNext(); ){
+				String host = (String) i.next();
+				Connection conn = (Connection) this.liveConnections.get(host);
+				if(conn == null){
+					continue;
+				}
+				try{
+					conn.ping();
+					foundHost = true;
+				} catch (SQLException e){
+					// give up if it is the current connection, otherwise NPE faking resultset later.
+					if(host.equals(this.connectionsToHostsMap.get(this.currentConn))){
+						// clean up underlying connections, since connection pool won't do it
+						closeAllConnections();
+						this.isClosed = true;
+						throw e;
 					}
-					try{
-						conn.ping();
-						foundHost = true;
-					} catch (SQLException e){
+					
+					// if the Exception is caused by ping connection lifetime checks, don't add to blacklist
+					if(e.getMessage().equals(Messages.getString("Connection.exceededConnectionLifetime"))){
+						// only set the return Exception if it's null
+						if(se == null){
+							se = e;
+						}
+					} else {
+						// overwrite the return Exception no matter what
 						se = e;
-						this.addToGlobalBlacklist(host);
+						if(this.isGlobalBlacklistEnabled()){
+							this.addToGlobalBlacklist(host);
+						}
 					}
+					// take the connection out of the liveConnections Map
+					this.liveConnections.remove(this.connectionsToHostsMap
+							.get(conn));
 				}
 			}
-			if(!foundHost){
+		}
+		// if there were no successful pings
+		if(!foundHost){
+			closeAllConnections();
+			this.isClosed = true;
+			// throw the stored Exception, if exists
+			if(se != null){
 				throw se;
 			}
-		} else {
-			Iterator allConns = this.liveConnections.values().iterator();
-			while (allConns.hasNext()) {
-				((Connection)allConns.next()).ping();
-			}			
+			// or create a new SQLException and throw it, must be no liveConnections
+			((ConnectionImpl)this.currentConn).throwConnectionClosedException();
 		}
-
+		
 	}
 	
 	public void addToGlobalBlacklist(String host) {

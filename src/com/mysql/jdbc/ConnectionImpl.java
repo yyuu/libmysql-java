@@ -1,23 +1,26 @@
 /*
  Copyright  2002-2007 MySQL AB, 2008 Sun Microsystems
+ All rights reserved. Use is subject to license terms.
 
- This program is free software; you can redistribute it and/or modify
- it under the terms of version 2 of the GNU General Public License as 
- published by the Free Software Foundation.
+  The MySQL Connector/J is licensed under the terms of the GPL,
+  like most MySQL Connectors. There are special exceptions to the
+  terms and conditions of the GPL as it is applied to this software,
+  see the FLOSS License Exception available on mysql.com.
 
- There are special exceptions to the terms and conditions of the GPL 
- as it is applied to this software. View the full text of the 
- exception in file EXCEPTIONS-CONNECTOR-J in the directory of this 
- software distribution.
+  This program is free software; you can redistribute it and/or
+  modify it under the terms of the GNU General Public License as
+  published by the Free Software Foundation; version 2 of the
+  License.
 
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+  This program is distributed in the hope that it will be useful,  
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
 
- You should have received a copy of the GNU General Public License
- along with this program; if not, write to the Free Software
- Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+  02110-1301 USA
 
 
 
@@ -87,12 +90,12 @@ public class ConnectionImpl extends ConnectionPropertiesImpl implements
 			interceptors = Util.loadExtensions(ConnectionImpl.this, props, interceptorClasses, "Connection.BadExceptionInterceptor",  this);
 		}
 		
-		public SQLException interceptException(SQLException sqlEx) {
+		public SQLException interceptException(SQLException sqlEx, Connection conn) {
 			if (interceptors != null) {
 				Iterator iter = interceptors.iterator();
 				
 				while (iter.hasNext()) {
-					sqlEx = ((ExceptionInterceptor)iter.next()).interceptException(sqlEx);
+					sqlEx = ((ExceptionInterceptor)iter.next()).interceptException(sqlEx, ConnectionImpl.this);
 				}
 			}
 			
@@ -218,7 +221,7 @@ public class ConnectionImpl extends ConnectionPropertiesImpl implements
 	private double queryTimeSumSquares;
 	private double queryTimeMean;
 	
-	private static Timer cancelTimer;
+	private Timer cancelTimer;
 	
 	private List connectionLifecycleInterceptors;
 	
@@ -240,24 +243,7 @@ public class ConnectionImpl extends ConnectionPropertiesImpl implements
 				TRANSACTION_REPEATABLE_READ));
 		mapTransIsolationNameToValue.put("SERIALIZABLE", Constants.integerValueOf(
 				TRANSACTION_SERIALIZABLE));
-		
-		boolean createdNamedTimer = false;
-		
-		// Use reflection magic to try this on JDK's 1.5 and newer, fallback to non-named
-		// timer on older VMs.
-		try {
-			Constructor ctr = Timer.class.getConstructor(new Class[] {String.class, Boolean.TYPE});
-			
-			cancelTimer = (Timer)ctr.newInstance(new Object[] { "MySQL Statement Cancellation Timer", Boolean.TRUE});
-			createdNamedTimer = true;
-		} catch (Throwable t) {
-			createdNamedTimer = false;
-		}
-		
-		if (!createdNamedTimer) {
-			cancelTimer = new Timer(true);
-		}
-		
+
 		if (Util.isJdbc4()) {
 			try {
 				JDBC_4_CONNECTION_CTOR = Class.forName(
@@ -329,7 +315,26 @@ public class ConnectionImpl extends ConnectionPropertiesImpl implements
 		return sqlExceptionWithNewMessage;
 	}
 
-	protected static Timer getCancelTimer() {
+	protected synchronized Timer getCancelTimer() {
+		if (cancelTimer == null) {
+			boolean createdNamedTimer = false;
+			
+			// Use reflection magic to try this on JDK's 1.5 and newer, fallback to non-named
+			// timer on older VMs.
+			try {
+				Constructor ctr = Timer.class.getConstructor(new Class[] {String.class, Boolean.TYPE});
+				
+				cancelTimer = (Timer)ctr.newInstance(new Object[] { "MySQL Statement Cancellation Timer", Boolean.TRUE});
+				createdNamedTimer = true;
+			} catch (Throwable t) {
+				createdNamedTimer = false;
+			}
+			
+			if (!createdNamedTimer) {
+				cancelTimer = new Timer(true);
+			}
+		}
+		
 		return cancelTimer;
 	}
 
@@ -778,9 +783,9 @@ public class ConnectionImpl extends ConnectionPropertiesImpl implements
 		
 		try {
 			this.dbmd = getMetaData(false, false);
+			initializeSafeStatementInterceptors();
 			createNewIO(false);
-			initializeStatementInterceptors();
-			this.io.setStatementInterceptors(this.statementInterceptors);
+			unSafeStatementInterceptors();
 		} catch (SQLException ex) {
 			cleanup(ex);
 
@@ -821,11 +826,48 @@ public class ConnectionImpl extends ConnectionPropertiesImpl implements
 		}
 	}
 
-    protected void initializeStatementInterceptors() throws SQLException {
-		this.statementInterceptors = Util.loadExtensions(this, this.props, 
+    protected void unSafeStatementInterceptors() throws SQLException {
+    	
+    	ArrayList unSafedStatementInterceptors = new ArrayList(this.statementInterceptors.size());
+    	
+    	this.statementInterceptors = new ArrayList(this.statementInterceptors.size());
+    	
+    	for (int i = 0; i < this.statementInterceptors.size(); i++) {
+    		NoSubInterceptorWrapper wrappedInterceptor = (NoSubInterceptorWrapper) this.statementInterceptors.get(i);
+    		
+    		unSafedStatementInterceptors.add(wrappedInterceptor.getUnderlyingInterceptor());
+    	}
+    	
+    	this.statementInterceptors = unSafedStatementInterceptors;
+	}
+    
+    protected void initializeSafeStatementInterceptors() throws SQLException {
+    	this.isClosed = false;
+    	
+    	List unwrappedInterceptors = Util.loadExtensions(this, this.props, 
 				getStatementInterceptors(),
 				"MysqlIo.BadStatementInterceptor", getExceptionInterceptor());
-	}
+    	
+    	this.statementInterceptors = new ArrayList(unwrappedInterceptors.size());
+
+    	for (int i = 0; i < unwrappedInterceptors.size(); i++) {
+    		Object interceptor = unwrappedInterceptors.get(i);
+    		
+    		// adapt older versions of statement interceptors, handle the case where something wants v2
+    		// functionality but wants to run with an older driver
+    		if (interceptor instanceof StatementInterceptor) {
+    			if (ReflectiveStatementInterceptorAdapter.getV2PostProcessMethod(interceptor.getClass()) != null) {
+    				this.statementInterceptors.add(new NoSubInterceptorWrapper(new ReflectiveStatementInterceptorAdapter((StatementInterceptor) interceptor)));
+    			} else {
+    				this.statementInterceptors.add(new NoSubInterceptorWrapper(new V1toV2StatementInterceptorAdapter((StatementInterceptor) interceptor)));
+    			}
+    		} else {
+    			this.statementInterceptors.add(new NoSubInterceptorWrapper((StatementInterceptorV2)interceptor));
+    		}
+    	}
+    	
+    	
+    }
     
     protected List getStatementInterceptorsInstances() {
     	return this.statementInterceptors;
@@ -1110,6 +1152,8 @@ public class ConnectionImpl extends ConnectionPropertiesImpl implements
 			configureClientCharacterSet(true);
 		}
 		
+		setSessionVariables();
+		
 		setupServerForTruncationChecks();
 	}
 
@@ -1148,7 +1192,7 @@ public class ConnectionImpl extends ConnectionPropertiesImpl implements
 		}
 	}
 
-	private void throwConnectionClosedException() throws SQLException {
+	void throwConnectionClosedException() throws SQLException {
 		StringBuffer messageBuf = new StringBuffer(
 				"No operations allowed after connection closed.");
 
@@ -2150,6 +2194,8 @@ public class ConnectionImpl extends ConnectionPropertiesImpl implements
 							boolean oldReadOnly = isReadOnly();
 							String oldCatalog = getCatalog();
 	
+							this.io.setStatementInterceptors(this.statementInterceptors);
+							
 							// Server properties might be different
 							// from previous connection, so initialize
 							// again...
@@ -2301,6 +2347,8 @@ public class ConnectionImpl extends ConnectionPropertiesImpl implements
 								boolean oldReadOnly = isReadOnly();
 								String oldCatalog = getCatalog();
 	
+								this.io.setStatementInterceptors(this.statementInterceptors);
+								
 								// Server properties might be different
 								// from previous connection, so initialize
 								// again...
@@ -3305,9 +3353,13 @@ public class ConnectionImpl extends ConnectionPropertiesImpl implements
 	}
 
 	public boolean hasSameProperties(Connection c) {
-		return this.props.equals(((ConnectionImpl)c).props);
+		return this.props.equals(c.getProperties());
 	}
 
+	public Properties getProperties() {
+		return this.props;
+	}
+	
 	public boolean hasTriedMaster() {
 		return this.hasTriedMasterFlag;
 	}
@@ -4418,7 +4470,7 @@ public class ConnectionImpl extends ConnectionPropertiesImpl implements
 			
 	    	if (this.statementInterceptors != null) {
 	    		for (int i = 0; i < this.statementInterceptors.size(); i++) {
-	    			((StatementInterceptor)this.statementInterceptors.get(i)).destroy();
+	    			((StatementInterceptorV2)this.statementInterceptors.get(i)).destroy();
 	    		}
 	    	}
 	    	
@@ -4431,6 +4483,13 @@ public class ConnectionImpl extends ConnectionPropertiesImpl implements
 			this.statementInterceptors = null;
 			this.exceptionInterceptor = null;
 			ProfilerEventHandlerFactory.removeInstance(this);
+			
+			synchronized (this) {
+				if (this.cancelTimer != null) {
+					this.cancelTimer.cancel();
+				}
+			}
+			
 			this.isClosed = true;
 		}
 

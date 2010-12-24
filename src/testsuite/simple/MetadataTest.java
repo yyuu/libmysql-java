@@ -1,23 +1,26 @@
 /*
  Copyright  2002-2004 MySQL AB, 2008 Sun Microsystems
+ All rights reserved. Use is subject to license terms.
 
- This program is free software; you can redistribute it and/or modify
- it under the terms of version 2 of the GNU General Public License as 
- published by the Free Software Foundation.
+  The MySQL Connector/J is licensed under the terms of the GPL,
+  like most MySQL Connectors. There are special exceptions to the
+  terms and conditions of the GPL as it is applied to this software,
+  see the FLOSS License Exception available on mysql.com.
 
- There are special exceptions to the terms and conditions of the GPL 
- as it is applied to this software. View the full text of the 
- exception in file EXCEPTIONS-CONNECTOR-J in the directory of this 
- software distribution.
+  This program is free software; you can redistribute it and/or
+  modify it under the terms of the GNU General Public License as
+  published by the Free Software Foundation; version 2 of the
+  License.
 
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+  This program is distributed in the hope that it will be useful,  
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
 
- You should have received a copy of the GNU General Public License
- along with this program; if not, write to the Free Software
- Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+  02110-1301 USA
 
 
 
@@ -548,13 +551,13 @@ public class MetadataTest extends BaseTestCase {
             this.stmt.executeUpdate("DROP TABLE IF EXISTS t1");
             this.stmt.executeUpdate("CREATE TABLE t1 (c1 int(1))");
             this.stmt.executeUpdate("CREATE INDEX index1 ON t1 (c1)");
-            Properties props = new Properties();
-            props.put("useInformationSchema", "true");
+
             Connection conn1 = null;
+            
             try {
-                conn1 = getConnectionWithProps(props);
+                conn1 = getConnectionWithProps("useInformationSchema=true");
                 DatabaseMetaData metaData = conn1.getMetaData();
-                this.rs = metaData.getIndexInfo("test", null, "t1", false, true);
+                this.rs = metaData.getIndexInfo(conn1.getCatalog(), null, "t1", false, true);
                 this.rs.next();
                 assertEquals("t1", this.rs.getString("TABLE_NAME"));
                 assertEquals("c1", this.rs.getString("COLUMN_NAME"));

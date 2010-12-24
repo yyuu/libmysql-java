@@ -1,23 +1,26 @@
 /*
  Copyright  2002-2007 MySQL AB, 2008 Sun Microsystems
+ All rights reserved. Use is subject to license terms.
 
- This program is free software; you can redistribute it and/or modify
- it under the terms of version 2 of the GNU General Public License as 
- published by the Free Software Foundation.
+  The MySQL Connector/J is licensed under the terms of the GPL,
+  like most MySQL Connectors. There are special exceptions to the
+  terms and conditions of the GPL as it is applied to this software,
+  see the FLOSS License Exception available on mysql.com.
 
- There are special exceptions to the terms and conditions of the GPL 
- as it is applied to this software. View the full text of the 
- exception in file EXCEPTIONS-CONNECTOR-J in the directory of this 
- software distribution.
+  This program is free software; you can redistribute it and/or
+  modify it under the terms of the GNU General Public License as
+  published by the Free Software Foundation; version 2 of the
+  License.
 
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+  This program is distributed in the hope that it will be useful,  
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
 
- You should have received a copy of the GNU General Public License
- along with this program; if not, write to the Free Software
- Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+  02110-1301 USA
 
 
 
@@ -486,26 +489,26 @@ public class PreparedStatement extends com.mysql.jdbc.StatementImpl implements
 				if (quoteCharStr.length() > 0) {
 					indexOfValues = StringUtils.indexOfIgnoreCaseRespectQuotes(
 							valuesSearchStart,
-							originalSql, "VALUES ", quoteCharStr.charAt(0), false);
+							originalSql, "VALUES", quoteCharStr.charAt(0), false);
 				} else {
 					indexOfValues = StringUtils.indexOfIgnoreCase(valuesSearchStart, 
 							originalSql,
-							"VALUES ");
+							"VALUES");
 				}
-				/* check if the char immediately preceding VALUES may be part of the table name */
+				
 				if (indexOfValues > 0) {
+					/* check if the char immediately preceding VALUES may be part of the table name */
 					char c = originalSql.charAt(indexOfValues - 1);
-					switch(c) {
-					case ' ':
-					case ')':
-					case '`':
-					case '\t':
-					case '\n':
-						break;
-					default:
-						valuesSearchStart = indexOfValues + 7;
+					if(!(Character.isWhitespace(c) || c == ')' || c == '`')){
+						valuesSearchStart = indexOfValues + 6;
 						indexOfValues = -1;
-						break;
+					} else {
+						/* check if the char immediately following VALUES may be whitespace or open parenthesis */
+						c = originalSql.charAt(indexOfValues + 6);
+						if(!(Character.isWhitespace(c) || c == '(')){
+							valuesSearchStart = indexOfValues + 6;
+							indexOfValues = -1;
+						}
 					}
 				} else {
 					break;
@@ -516,7 +519,7 @@ public class PreparedStatement extends com.mysql.jdbc.StatementImpl implements
 				return null;
 			}
 
-			int indexOfFirstParen = sql.indexOf('(', indexOfValues + 7);
+			int indexOfFirstParen = sql.indexOf('(', indexOfValues + 6);
 
 			if (indexOfFirstParen == -1) {
 				return null;
@@ -558,6 +561,14 @@ public class PreparedStatement extends com.mysql.jdbc.StatementImpl implements
 		
 		String getSqlForBatch(int numBatch) throws UnsupportedEncodingException {
 			ParseInfo batchInfo = getParseInfoForBatch(numBatch);
+			
+			return getSqlForBatch(batchInfo);
+		}
+		
+		/** 
+		 * Used for filling in the SQL for getPreparedSql() - for debugging 
+		 */
+		String getSqlForBatch(ParseInfo batchInfo) throws UnsupportedEncodingException {
 			int size = 0;
 			final byte[][] sqlStrings = batchInfo.staticSql;
 			final int sqlStringsLength = sqlStrings.length;
@@ -1519,7 +1530,7 @@ public class PreparedStatement extends com.mysql.jdbc.StatementImpl implements
 							batchTimeout != 0
 							&& locallyScopedConn.versionMeetsMinimum(5, 0, 0)) {
 						timeoutTask = new CancelTask((StatementImpl)batchedStatement);
-						ConnectionImpl.getCancelTimer().schedule(timeoutTask,
+						locallyScopedConn.getCancelTimer().schedule(timeoutTask,
 								batchTimeout);
 					}
 					
@@ -1674,7 +1685,7 @@ public class PreparedStatement extends com.mysql.jdbc.StatementImpl implements
 	protected int[] executeBatchedInserts(int batchTimeout) throws SQLException {
 		String valuesClause = getValuesClause(); 
 
-		Connection locallyScopedConn = this.connection;
+		ConnectionImpl locallyScopedConn = this.connection;
 
 		if (valuesClause == null) {
 			return executeBatchSerially(batchTimeout);
@@ -1712,12 +1723,12 @@ public class PreparedStatement extends com.mysql.jdbc.StatementImpl implements
 					batchedStatement = /* FIXME -if we ever care about folks proxying our ConnectionImpl */
 							prepareBatchedInsertSQL((ConnectionImpl) locallyScopedConn, numValuesPerBatch);
 
-				if (this.connection.getEnableQueryTimeouts()
+				if (locallyScopedConn.getEnableQueryTimeouts()
 						&& batchTimeout != 0
-						&& this.connection.versionMeetsMinimum(5, 0, 0)) {
+						&& locallyScopedConn.versionMeetsMinimum(5, 0, 0)) {
 					timeoutTask = new CancelTask(
 							(StatementImpl) batchedStatement);
-					ConnectionImpl.getCancelTimer().schedule(timeoutTask,
+					locallyScopedConn.getCancelTimer().schedule(timeoutTask,
 							batchTimeout);
 				}
 
@@ -1916,7 +1927,7 @@ public class PreparedStatement extends com.mysql.jdbc.StatementImpl implements
 	 */
 	protected int[] executeBatchSerially(int batchTimeout) throws SQLException {
 		
-		Connection locallyScopedConn = this.connection;
+		ConnectionImpl locallyScopedConn = this.connection;
 		
 		if (locallyScopedConn == null) {
 			checkClosed();
@@ -1937,11 +1948,11 @@ public class PreparedStatement extends com.mysql.jdbc.StatementImpl implements
 			CancelTask timeoutTask = null;
 			
 			try {
-				if (this.connection.getEnableQueryTimeouts() &&
+				if (locallyScopedConn.getEnableQueryTimeouts() &&
 						batchTimeout != 0
-						&& this.connection.versionMeetsMinimum(5, 0, 0)) {
+						&& locallyScopedConn.versionMeetsMinimum(5, 0, 0)) {
 					timeoutTask = new CancelTask(this);
-					ConnectionImpl.getCancelTimer().schedule(timeoutTask,
+					locallyScopedConn.getCancelTimer().schedule(timeoutTask,
 							batchTimeout);
 				}
 				
@@ -2007,6 +2018,23 @@ public class PreparedStatement extends com.mysql.jdbc.StatementImpl implements
 					throw new java.sql.BatchUpdateException(sqlEx.getMessage(),
 							sqlEx.getSQLState(), sqlEx.getErrorCode(), updateCounts);
 				}
+			} catch (NullPointerException npe) {
+				try {
+					checkClosed();
+				} catch (SQLException connectionClosedEx) {
+					updateCounts[batchCommandIndex] = EXECUTE_FAILED;
+					
+					int[] newUpdateCounts = new int[batchCommandIndex];
+					
+					System.arraycopy(updateCounts, 0,
+							newUpdateCounts, 0, batchCommandIndex);
+
+					throw new java.sql.BatchUpdateException(connectionClosedEx
+							.getMessage(), connectionClosedEx.getSQLState(), connectionClosedEx
+							.getErrorCode(), newUpdateCounts);
+				}
+				
+				throw npe; // we don't know why this happened, punt
 			} finally {
 				batchCommandIndex = -1;
 				
@@ -2070,7 +2098,7 @@ public class PreparedStatement extends com.mysql.jdbc.StatementImpl implements
 						this.timeoutInMillis != 0
 						&& locallyScopedConnection.versionMeetsMinimum(5, 0, 0)) {
 					timeoutTask = new CancelTask(this);
-					ConnectionImpl.getCancelTimer().schedule(timeoutTask, 
+					locallyScopedConnection.getCancelTimer().schedule(timeoutTask, 
 							this.timeoutInMillis);
 				}
 				
@@ -2159,11 +2187,19 @@ public class PreparedStatement extends com.mysql.jdbc.StatementImpl implements
 			
 			if (doStreaming
 					&& this.connection.getNetTimeoutForStreamingResults() > 0) {
-				locallyScopedConn.execSQL(this, "SET net_write_timeout="
-						+ this.connection.getNetTimeoutForStreamingResults(),
-						-1, null, ResultSet.TYPE_FORWARD_ONLY,
-						ResultSet.CONCUR_READ_ONLY, false, this.currentCatalog,
-						null, false);
+				
+				java.sql.Statement stmt = null;
+				
+				try {
+					stmt = this.connection.createStatement();
+					
+					((com.mysql.jdbc.StatementImpl)stmt).executeSimpleNonQuery(this.connection, "SET net_write_timeout=" 
+							+ this.connection.getNetTimeoutForStreamingResults());
+				} finally {
+					if (stmt != null) {
+						stmt.close();
+					}
+				}
 			}
 			
 			Buffer sendPacket = fillSendPacket();
@@ -2517,15 +2553,33 @@ public class PreparedStatement extends com.mysql.jdbc.StatementImpl implements
 	}
 
 	/**
-	 * Returns a preparaed statement for the number of batched parameters, used when re-writing batch INSERTs.
+	 * Returns a prepared statement for the number of batched parameters, used when re-writing batch INSERTs.
 	 */
 	protected PreparedStatement prepareBatchedInsertSQL(ConnectionImpl localConn, int numBatches) throws SQLException {
-		PreparedStatement pstmt = new PreparedStatement(localConn, "batch statement, no sql available", this.currentCatalog, this.parseInfo.getParseInfoForBatch(numBatches));
+		PreparedStatement pstmt = new PreparedStatement(localConn, "Rewritten batch of: " + this.originalSql, this.currentCatalog, this.parseInfo.getParseInfoForBatch(numBatches));
 		pstmt.setRetrieveGeneratedKeys(this.retrieveGeneratedKeys);
+		pstmt.rewrittenBatchSize = numBatches;
 		
 		return pstmt;
 	}
 
+	protected int rewrittenBatchSize = 0;
+	
+	public int getRewrittenBatchSize() {
+		return this.rewrittenBatchSize;
+	}
+	
+	public String getNonRewrittenSql() {
+		int indexOfBatch = this.originalSql.indexOf(" of: ");
+		
+		if (indexOfBatch != -1) {
+			return this.originalSql.substring(indexOfBatch + 5);
+		}
+		
+		return this.originalSql;
+	}
+	
+	
 	/**
 	 * DOCUMENT ME!
 	 * 
@@ -4691,17 +4745,25 @@ public class PreparedStatement extends com.mysql.jdbc.StatementImpl implements
 				} else {
 					synchronized (this) {
 						if (this.tsdf == null) {
-							this.tsdf = new SimpleDateFormat("''yyyy-MM-dd HH:mm:ss", Locale.US); //$NON-NLS-1$
+							this.tsdf = new SimpleDateFormat("''yyyy-MM-dd HH:mm:ss''", Locale.US); //$NON-NLS-1$
 						}
 						
 						timestampString = this.tsdf.format(x);
-						StringBuffer buf = new StringBuffer();
-						buf.append(timestampString);
-						buf.append('.');
-						buf.append(formatNanos(x.getNanos()));
-						buf.append('\'');
 						
-						setInternal(parameterIndex, buf.toString()); // SimpleDateFormat is not
+						if (false) { // not so long as Bug#50774 is around
+							StringBuffer buf = new StringBuffer();
+							buf.append(timestampString);
+							int nanos = x.getNanos();
+							
+							if (nanos != 0) {
+								buf.append('.');
+								buf.append(formatNanos(nanos));
+							}
+							
+							buf.append('\'');
+						}
+						
+						setInternal(parameterIndex, timestampString); // SimpleDateFormat is not
 																	  // thread-safe
 					}
 				}
@@ -5554,7 +5616,15 @@ public class PreparedStatement extends com.mysql.jdbc.StatementImpl implements
 	}
 	
 	public String getPreparedSql() {
-		return this.originalSql;
+		if (this.rewrittenBatchSize == 0) {
+			return this.originalSql;
+		}
+		
+		try {
+			return this.parseInfo.getSqlForBatch(this.parseInfo);
+		} catch (UnsupportedEncodingException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	public int getUpdateCount() throws SQLException {

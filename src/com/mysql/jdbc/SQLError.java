@@ -1,23 +1,26 @@
 /*
  Copyright  2002-2007 MySQL AB, 2008 Sun Microsystems
+ All rights reserved. Use is subject to license terms.
 
- This program is free software; you can redistribute it and/or modify
- it under the terms of version 2 of the GNU General Public License as 
- published by the Free Software Foundation.
+  The MySQL Connector/J is licensed under the terms of the GPL,
+  like most MySQL Connectors. There are special exceptions to the
+  terms and conditions of the GPL as it is applied to this software,
+  see the FLOSS License Exception available on mysql.com.
 
- There are special exceptions to the terms and conditions of the GPL 
- as it is applied to this software. View the full text of the 
- exception in file EXCEPTIONS-CONNECTOR-J in the directory of this 
- software distribution.
+  This program is free software; you can redistribute it and/or
+  modify it under the terms of the GNU General Public License as
+  published by the Free Software Foundation; version 2 of the
+  License.
 
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+  This program is distributed in the hope that it will be useful,  
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
 
- You should have received a copy of the GNU General Public License
- along with this program; if not, write to the Free Software
- Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+  02110-1301 USA
 
 
 
@@ -927,10 +930,27 @@ public class SQLError {
 	}
 
 	public static SQLException createSQLException(String message, ExceptionInterceptor interceptor) {
-		return new SQLException(message);
+		return createSQLException(message, interceptor, null);
+	}
+	public static SQLException createSQLException(String message, ExceptionInterceptor interceptor, Connection conn) {
+		SQLException sqlEx = new SQLException(message);
+		
+		if (interceptor != null) {
+			SQLException interceptedEx = interceptor.interceptException(sqlEx, conn);
+			
+			if (interceptedEx != null) {
+				return interceptedEx;
+			}
+		}
+		
+		return sqlEx;
 	}
 
 	public static SQLException createSQLException(String message, String sqlState, Throwable cause, ExceptionInterceptor interceptor) {
+		return createSQLException(message, sqlState, cause, interceptor, null);
+	}
+	public static SQLException createSQLException(String message, String sqlState, Throwable cause, ExceptionInterceptor interceptor,
+			Connection conn) {
 		if (THROWABLE_INIT_CAUSE_METHOD == null) {
 			if (cause != null) {
 				message = message + " due to " + cause.toString();
@@ -948,6 +968,14 @@ public class SQLError {
 			}
 		}
 		
+		if (interceptor != null) {
+			SQLException interceptedEx = interceptor.interceptException(sqlEx, conn);
+			
+			if (interceptedEx != null) {
+				return interceptedEx;
+			}
+		}
+		
 		return sqlEx;
 	}
 	
@@ -958,106 +986,126 @@ public class SQLError {
 	
 	public static SQLException createSQLException(String message,
 			String sqlState, int vendorErrorCode, boolean isTransient, ExceptionInterceptor interceptor) {
+		return createSQLException(message, sqlState, vendorErrorCode, false, interceptor, null);
+	}
+	public static SQLException createSQLException(String message,
+			String sqlState, int vendorErrorCode, boolean isTransient, ExceptionInterceptor interceptor, Connection conn) {
 		try {
+			SQLException sqlEx = null;
+			
 			if (sqlState != null) {
 				if (sqlState.startsWith("08")) {
 					if (isTransient) {
 						if (!Util.isJdbc4()) {
-							return new MySQLTransientConnectionException(
+							sqlEx = new MySQLTransientConnectionException(
 									message, sqlState, vendorErrorCode);
-						}
-
-						return (SQLException) Util
+						} else {
+							sqlEx = (SQLException) Util
 								.getInstance(
 										"com.mysql.jdbc.exceptions.jdbc4.MySQLTransientConnectionException",
 										new Class[] { String.class,
 												String.class, Integer.TYPE },
 										new Object[] { message, sqlState,
 												Constants.integerValueOf(vendorErrorCode) }, interceptor);
-					}
-
-					if (!Util.isJdbc4()) {
-						return new MySQLNonTransientConnectionException(
+						}
+					} else if (!Util.isJdbc4()) {
+						sqlEx = new MySQLNonTransientConnectionException(
 								message, sqlState, vendorErrorCode);
-					}
-
-					return (SQLException) Util
-							.getInstance(
+					} else {
+						sqlEx = (SQLException) Util.getInstance(
 									"com.mysql.jdbc.exceptions.jdbc4.MySQLNonTransientConnectionException",
 									new Class[] { String.class, String.class,
 											Integer.TYPE  }, new Object[] {
 											message, sqlState,
 											Constants.integerValueOf(vendorErrorCode) }, interceptor);
-				}
-
-				if (sqlState.startsWith("22")) {
-					if (!Util.isJdbc4()) {
-						return new MySQLDataException(message, sqlState,
-								vendorErrorCode);
 					}
-
-					return (SQLException) Util
+				} else if (sqlState.startsWith("22")) {
+					if (!Util.isJdbc4()) {
+						sqlEx = new MySQLDataException(message, sqlState,
+								vendorErrorCode);
+					} else {
+						sqlEx = (SQLException) Util
 							.getInstance(
 									"com.mysql.jdbc.exceptions.jdbc4.MySQLDataException",
 									new Class[] { String.class, String.class,
 											Integer.TYPE  }, new Object[] {
 											message, sqlState,
 											Constants.integerValueOf(vendorErrorCode) }, interceptor);
-				}
-
-				if (sqlState.startsWith("23")) {
+					}
+				} else if (sqlState.startsWith("23")) {
 
 					if (!Util.isJdbc4()) {
-						return new MySQLIntegrityConstraintViolationException(
+						sqlEx = new MySQLIntegrityConstraintViolationException(
 								message, sqlState, vendorErrorCode);
-					}
-
-					return (SQLException) Util
+					} else {
+						sqlEx =  (SQLException) Util
 							.getInstance(
 									"com.mysql.jdbc.exceptions.jdbc4.MySQLIntegrityConstraintViolationException",
 									new Class[] { String.class, String.class,
 											Integer.TYPE  }, new Object[] {
 											message, sqlState,
 											Constants.integerValueOf(vendorErrorCode) }, interceptor);
-				}
-
-				if (sqlState.startsWith("42")) {
-					if (!Util.isJdbc4()) {
-						return new MySQLSyntaxErrorException(message, sqlState,
-								vendorErrorCode);
 					}
-
-					return (SQLException) Util
-							.getInstance(
+				} else if (sqlState.startsWith("42")) {
+					if (!Util.isJdbc4()) {
+						sqlEx = new MySQLSyntaxErrorException(message, sqlState,
+								vendorErrorCode);
+					} else {
+						sqlEx = (SQLException) Util.getInstance(
 									"com.mysql.jdbc.exceptions.jdbc4.MySQLSyntaxErrorException",
 									new Class[] { String.class, String.class,
 											Integer.TYPE  }, new Object[] {
 											message, sqlState,
 											Constants.integerValueOf(vendorErrorCode) }, interceptor);
-				}
-
-				if (sqlState.startsWith("40")) {
-					if (!Util.isJdbc4()) {
-						return new MySQLTransactionRollbackException(message,
-								sqlState, vendorErrorCode);
 					}
-
-					return (SQLException) Util
+				} else if (sqlState.startsWith("40")) {
+					if (!Util.isJdbc4()) {
+						sqlEx = new MySQLTransactionRollbackException(message,
+								sqlState, vendorErrorCode);
+					} else {
+						sqlEx = (SQLException) Util
 							.getInstance(
 									"com.mysql.jdbc.exceptions.jdbc4.MySQLTransactionRollbackException",
 									new Class[] { String.class, String.class,
 											Integer.TYPE  }, new Object[] {
 											message, sqlState,
 											Constants.integerValueOf(vendorErrorCode) }, interceptor);
+					}
+				} else {
+					sqlEx = new SQLException(message, sqlState, vendorErrorCode);
+				}
+			} else {
+				sqlEx = new SQLException(message, sqlState, vendorErrorCode);
+			}
+			
+			if (interceptor != null) {
+				SQLException interceptedEx = interceptor.interceptException(sqlEx, conn);
+				
+				if (interceptedEx != null) {
+					return interceptedEx;
 				}
 			}
-
-			return new SQLException(message, sqlState, vendorErrorCode);
+			
+			if (sqlEx == null) {
+				System.out.println("!");
+			}
+			
+			return sqlEx;
 		} catch (SQLException sqlEx) {
-			return new SQLException(
+			SQLException unexpectedEx = new SQLException(
 					"Unable to create correct SQLException class instance, error class/codes may be incorrect. Reason: "
 							+ Util.stackTraceToString(sqlEx),
 					SQL_STATE_GENERAL_ERROR);
+			
+			if (interceptor != null) {
+				SQLException interceptedEx = interceptor.interceptException(unexpectedEx, conn);
+				
+				if (interceptedEx != null) {
+					return interceptedEx;
+				}
+			}
+			
+			return unexpectedEx;
 		}
 	}
 	
@@ -1086,6 +1134,14 @@ public class SQLError {
 			} catch (Throwable t) {
 				// we're not going to muck with that here, since it's
 				// an error condition anyway!
+			}
+		}
+		
+		if (interceptor != null) {
+			SQLException interceptedEx = interceptor.interceptException(exToReturn, conn);
+			
+			if (interceptedEx != null) {
+				return interceptedEx;
 			}
 		}
 		

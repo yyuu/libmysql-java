@@ -1,5 +1,6 @@
 /*
  Copyright  2002-2007 MySQL AB, 2008 Sun Microsystems
+ All rights reserved. Use is subject to license terms.
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of version 2 of the GNU General Public License as
@@ -1945,6 +1946,26 @@ public class ResultSetImpl implements ResultSetInternalMethods {
 		return null;
 	}
 
+	public int getBytesSize() throws SQLException {
+		RowData localRowData = this.rowData;
+		
+		checkClosed();
+		
+		if (localRowData instanceof RowDataStatic) {
+			int bytesSize = 0;
+			
+			int numRows = localRowData.size();
+
+			for (int i = 0; i < numRows; i++) {
+				bytesSize += localRowData.getAt(i).getBytesSize();
+			}
+
+			return bytesSize;
+		}
+		
+		return -1;
+	}
+	
 	/**
 	 * Optimization to only use one calendar per-session, or calculate it for
 	 * each call, depending on user configuration
@@ -3792,6 +3813,28 @@ public class ResultSetImpl implements ResultSetInternalMethods {
 
 			}
 
+			if (this.connection.getNoDatetimeStringSync()) {
+				byte[] asBytes = getNativeBytes(columnIndex, true);
+				
+				if (asBytes == null) {
+					return null;
+				}
+				
+				if (asBytes.length == 0 /* newer versions of the server 
+					seem to do this when they see all-zero datetime data */) {
+					return "0000-00-00";
+				}
+				
+				int year = (asBytes[0] & 0xff)
+				| ((asBytes[1] & 0xff) << 8);
+				int month = asBytes[2];
+				int day = asBytes[3];
+				
+				if (year == 0 && month == 0 && day == 0) {
+					return "0000-00-00";
+				}
+			}
+			
 			Date dt = getNativeDate(columnIndex);
 
 			if (dt == null) {
@@ -3810,6 +3853,28 @@ public class ResultSetImpl implements ResultSetInternalMethods {
 			return String.valueOf(tm);
 
 		case Types.TIMESTAMP:
+			if (this.connection.getNoDatetimeStringSync()) {
+				byte[] asBytes = getNativeBytes(columnIndex, true);
+				
+				if (asBytes == null) {
+					return null;
+				}
+				
+				if (asBytes.length == 0 /* newer versions of the server 
+					seem to do this when they see all-zero datetime data */) {
+					return "0000-00-00 00:00:00";
+				}
+				
+				int year = (asBytes[0] & 0xff)
+				| ((asBytes[1] & 0xff) << 8);
+				int month = asBytes[2];
+				int day = asBytes[3];
+				
+				if (year == 0 && month == 0 && day == 0) {
+					return "0000-00-00 00:00:00";
+				}
+			}
+			
 			Timestamp tstamp = getNativeTimestamp(columnIndex,
 					null, this.defaultTimeZone, false);
 
@@ -4567,8 +4632,11 @@ public class ResultSetImpl implements ResultSetInternalMethods {
 
 		// TODO: Check Types Here.
 		stringVal = getNativeConvertToString(columnIndex, field);
-
-		if (field.isZeroFill() && (stringVal != null)) {
+		int mysqlType = field.getMysqlType();
+		
+		if (mysqlType != MysqlDefs.FIELD_TYPE_TIMESTAMP && 
+				mysqlType != MysqlDefs.FIELD_TYPE_DATE && 
+				field.isZeroFill() && (stringVal != null)) {
 			int origLength = stringVal.length();
 
 			StringBuffer zeroFillBuf = new StringBuffer(origLength);

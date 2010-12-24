@@ -1,23 +1,26 @@
 /*
  Copyright  2002-2007 MySQL AB, 2008 Sun Microsystems
+ All rights reserved. Use is subject to license terms.
 
- This program is free software; you can redistribute it and/or modify
- it under the terms of version 2 of the GNU General Public License as 
- published by the Free Software Foundation.
+  The MySQL Connector/J is licensed under the terms of the GPL,
+  like most MySQL Connectors. There are special exceptions to the
+  terms and conditions of the GPL as it is applied to this software,
+  see the FLOSS License Exception available on mysql.com.
 
- There are special exceptions to the terms and conditions of the GPL 
- as it is applied to this software. View the full text of the 
- exception in file EXCEPTIONS-CONNECTOR-J in the directory of this 
- software distribution.
+  This program is free software; you can redistribute it and/or
+  modify it under the terms of the GNU General Public License as
+  published by the Free Software Foundation; version 2 of the
+  License.
 
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+  This program is distributed in the hope that it will be useful,  
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
 
- You should have received a copy of the GNU General Public License
- along with this program; if not, write to the Free Software
- Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+  02110-1301 USA
 
 
 
@@ -65,10 +68,10 @@ import com.mysql.jdbc.MysqlDataTruncation;
 import com.mysql.jdbc.MysqlErrorNumbers;
 import com.mysql.jdbc.NonRegisteringDriver;
 import com.mysql.jdbc.ReplicationConnection;
-import com.mysql.jdbc.ReplicationDriver;
 import com.mysql.jdbc.SQLError;
 import com.mysql.jdbc.StandardSocketFactory;
 import com.mysql.jdbc.integration.jboss.MysqlValidConnectionChecker;
+import com.mysql.jdbc.jdbc2.optional.MysqlConnectionPoolDataSource;
 import com.mysql.jdbc.jdbc2.optional.MysqlXADataSource;
 import com.mysql.jdbc.jdbc2.optional.MysqlXid;
 import com.mysql.jdbc.jdbc2.optional.SuspendableXAConnection;
@@ -1598,59 +1601,6 @@ public class ConnectionRegressionTest extends BaseTestCase {
 		}
 	}
 
-	protected Connection getMasterSlaveReplicationConnection()
-			throws SQLException {
-
-		Connection replConn = new ReplicationDriver().connect(
-				getMasterSlaveUrl(), getMasterSlaveProps());
-
-		return replConn;
-	}
-
-	protected String getMasterSlaveUrl() throws SQLException {
-		StringBuffer urlBuf = new StringBuffer("jdbc:mysql://");
-		Properties defaultProps = getPropertiesFromTestsuiteUrl();
-		String hostname = defaultProps
-				.getProperty(NonRegisteringDriver.HOST_PROPERTY_KEY);
-
-		int colonIndex = hostname.indexOf(":");
-
-		String portNumber = "3306";
-
-		if (colonIndex != -1 && !hostname.startsWith(":")) {
-			portNumber = hostname.substring(colonIndex + 1);
-			hostname = hostname.substring(0, colonIndex);
-		} else if (hostname.startsWith(":")) {
-			portNumber = hostname.substring(1);
-			hostname = "localhost";
-		} else {
-			portNumber = defaultProps
-					.getProperty(NonRegisteringDriver.PORT_PROPERTY_KEY);
-		}
-
-		for (int i = 0; i < 2; i++) {
-			urlBuf.append(hostname);
-			urlBuf.append(":");
-			urlBuf.append(portNumber);
-
-			if (i == 0) {
-				urlBuf.append(",");
-			}
-		}
-		urlBuf.append("/");
-
-		return urlBuf.toString();
-	}
-
-	protected Properties getMasterSlaveProps() throws SQLException {
-		Properties props = getPropertiesFromTestsuiteUrl();
-
-		props.remove(NonRegisteringDriver.HOST_PROPERTY_KEY);
-		props.remove(NonRegisteringDriver.PORT_PROPERTY_KEY);
-
-		return props;
-	}
-
 	/**
 	 * Tests fix for BUG#15570 - ReplicationConnection incorrectly copies state,
 	 * doesn't transfer connection context correctly when transitioning between
@@ -2172,53 +2122,6 @@ public class ConnectionRegressionTest extends BaseTestCase {
     	lbConn.close();
     }
 
-	private Connection getLoadBalancedConnection(int badHostLocation, 
-			String badHost, Properties props) throws SQLException {
-		int indexOfHostStart = dbUrl.indexOf("://") + 3;
-    	int indexOfHostEnd = dbUrl.indexOf("/", indexOfHostStart);
-    	
-    	String firstHost = dbUrl.substring(indexOfHostStart, indexOfHostEnd);
-    	
-    	if (firstHost.length() == 0) {
-    		firstHost = "localhost:3306";
-    	}
-    	
-    	String dbAndConfigs = dbUrl.substring(indexOfHostEnd);
-    	
-    	if (badHost != null) {
-    		badHost = badHost + ",";
-    	}
-    	
-    	String hostsString = null;
-    	
-    	switch (badHostLocation) {
-    	case 1:
-    		hostsString = badHost + firstHost;
-    		break;
-    	case 2:
-    		hostsString = firstHost + "," + badHost + firstHost;
-    		break;
-    	case 3:
-    		hostsString = firstHost + "," + badHost;
-    		break;
-    	default:
-    			throw new IllegalArgumentException();
-    	}
-    	
-    	Connection lbConn = DriverManager.getConnection("jdbc:mysql:loadbalance://" + hostsString + dbAndConfigs, props);
-		
-    	return lbConn;
-	}
-	
-	private Connection getLoadBalancedConnection() throws SQLException {
-		return getLoadBalancedConnection(1, "", null);
-	}
-	
-	private Connection getLoadBalancedConnection(Properties props) throws SQLException {
-		return getLoadBalancedConnection(1, "", props);
-	}
-	
-	
 	/**
 	 * Test of a new feature to fix BUG 22643, specifying a
 	 * "validation query" in your connection pool that starts
@@ -2451,77 +2354,6 @@ public class ConnectionRegressionTest extends BaseTestCase {
 		}
 	}
 
-	private void copyBasePropertiesIntoProps(Properties props, NonRegisteringDriver d)
-			throws SQLException {
-		Properties testCaseProps = d.parseURL(BaseTestCase.dbUrl, null);
-		String user = testCaseProps.getProperty(NonRegisteringDriver.USER_PROPERTY_KEY);
-		
-		if (user != null) {
-			props.setProperty(NonRegisteringDriver.USER_PROPERTY_KEY, user);
-		}
-		
-		String password =  testCaseProps.getProperty(NonRegisteringDriver.PASSWORD_PROPERTY_KEY);
-		
-		if (password != null) {
-			props.setProperty(NonRegisteringDriver.PASSWORD_PROPERTY_KEY, password);
-		}
-		
-		String port = testCaseProps.getProperty(NonRegisteringDriver.PORT_PROPERTY_KEY);
-		
-		if (port != null) {
-			props.setProperty(NonRegisteringDriver.PORT_PROPERTY_KEY, port);
-		} else {
-			String host = testCaseProps.getProperty(NonRegisteringDriver.HOST_PROPERTY_KEY);
-			
-			if (host != null) {
-				String[] hostPort = host.split(":");
-				
-				if (hostPort.length > 1) {
-					props.setProperty(NonRegisteringDriver.PORT_PROPERTY_KEY, hostPort[1]);
-				}
-			}
-		}
-	}
-
-	private String getPortFreeHostname(Properties props, NonRegisteringDriver d)
-			throws SQLException {
-		String host = d.parseURL(BaseTestCase.dbUrl, props).getProperty(NonRegisteringDriver.HOST_PROPERTY_KEY);
-		
-		if(host == null){
-			host = "localhost";
-		}
-		
-		host = host.split(":")[0];
-		return host;
-	}	
-	
-	private Connection getUnreliableLoadBalancedConnection(String[] hostNames, Properties props) throws Exception{
-		if(props == null){
-			props = new Properties();
-		}
-		NonRegisteringDriver d = new NonRegisteringDriver();
-		this.copyBasePropertiesIntoProps(props, d);
-		props.setProperty("socketFactory", "testsuite.UnreliableSocketFactory");
-		String db = d.parseURL(BaseTestCase.dbUrl, props).getProperty(NonRegisteringDriver.DBNAME_PROPERTY_KEY);
-		
-		String host = getPortFreeHostname(props, d);
-		UnreliableSocketFactory.flushAllHostLists();
-		StringBuffer hostString = new StringBuffer();
-		String glue = "";
-		for(int i = 0; i < hostNames.length; i++){
-			UnreliableSocketFactory.mapHost(hostNames[i], host);
-			hostString.append(glue);
-			glue = ",";
-			hostString.append(hostNames[i]);
-		}
-		
-		UnreliableSocketFactory.mapHost("second", host);
-		props.remove(NonRegisteringDriver.HOST_PROPERTY_KEY);
-			
-		return getConnectionWithProps("jdbc:mysql:loadbalance://" + hostString.toString() +"/" + db, props);
-		
-	}
-	
 	public void testBug43421() throws Exception {
 		
 		Properties props = new Properties();
@@ -2569,6 +2401,37 @@ public class ConnectionRegressionTest extends BaseTestCase {
 	    	closeMemberJDBCResources();
 		}
 
+	}
+
+	public void testBug48442() throws Exception {
+		
+		Properties props = new Properties();
+		props.setProperty("loadBalanceStrategy", "random");
+		Connection conn2 = this.getUnreliableLoadBalancedConnection(new String[]{"first", "second"}, props);
+			
+		assertNotNull("Connection should not be null", conn2);
+		conn2.setAutoCommit(false);
+		UnreliableSocketFactory.downHost("second");
+		int hc = 0;
+		try {
+			try{
+				conn2.createStatement().execute("SELECT 1");
+			} catch (SQLException e){
+				conn2.createStatement().execute("SELECT 1");
+			}
+			hc = conn2.hashCode();
+			conn2.commit();
+			UnreliableSocketFactory.dontDownHost("second");
+			UnreliableSocketFactory.downHost("first");
+			try{
+				conn2.commit();
+			} catch (SQLException e){}
+			assertTrue(hc == conn2.hashCode());
+			
+
+		} finally {
+	    	closeMemberJDBCResources();
+		}
 	}
 	
 	public void testBug45171() throws Exception {
@@ -2770,5 +2633,57 @@ public class ConnectionRegressionTest extends BaseTestCase {
 		}
 		
 	}
+	
+	public void testBug48486() throws Exception {
+		int endHost = dbUrl.lastIndexOf("/");
+		String databaseStuff = dbUrl.substring(endHost + 1);
+		
+		Properties props = new NonRegisteringDriver().parseURL(dbUrl, null);
+		String host = props.getProperty(NonRegisteringDriver.HOST_PROPERTY_KEY);
+		String port = props.getProperty(NonRegisteringDriver.PORT_PROPERTY_KEY);
+		
+		String newUrl =  "jdbc:mysql:loadbalance://" + host + ":" + port + "," + host + ":" + port + "/" + databaseStuff;
+		
+		MysqlConnectionPoolDataSource ds = new MysqlConnectionPoolDataSource();
+		ds.setUrl(newUrl);
+		
+		Connection c = ds.getPooledConnection().getConnection();
+		c.createStatement().executeQuery("SELECT 1");
+		c.prepareStatement("SELECT 1").executeQuery();
+	}
+	public void testBug48605() throws Exception {
+		Properties props = new Properties();
+		props.setProperty("loadBalanceStrategy", "random");
+		props.setProperty("selfDestructOnPingMaxOperations", "5");
+		Connection conn2 = this.getUnreliableLoadBalancedConnection(new String[]{"first", "second"}, props);
+			
+		assertNotNull("Connection should not be null", conn2);
+		conn2.setAutoCommit(false);
+		conn2.createStatement().execute("SELECT 1");
+		conn2.createStatement().execute("SELECT 1");
+		conn2.createStatement().execute("SELECT 1");
+		conn2.createStatement().execute("SELECT 1");
+		conn2.createStatement().execute("SELECT 1");
+		conn2.commit();
+		try{
+			conn2.createStatement().execute("/* ping */ SELECT 1");
+		// don't care about this - we want the SQLExceptions passed up early for ping failures, rather
+		// than waiting until commit/rollback and pickNewConnection().
+		} catch(SQLException e){ }
+		assertTrue(conn2.isClosed());
+		try{
+			conn2.createStatement().execute("SELECT 1");
+			fail("Should throw Exception, connection is closed.");
+		} catch(SQLException e){ }
+		
+		
+		closeMemberJDBCResources();
+	}
 
+	public void testBug49700() throws Exception {
+		Connection c = getConnectionWithProps("sessionVariables=@foo='bar'");
+		assertEquals("bar", getSingleIndexedValueWithQuery(c, 1, "SELECT @foo"));
+		((com.mysql.jdbc.Connection)c).resetServerState();
+		assertEquals("bar", getSingleIndexedValueWithQuery(c, 1, "SELECT @foo"));
+	}
 }

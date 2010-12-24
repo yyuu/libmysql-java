@@ -1,23 +1,26 @@
 /*
  Copyright  2004-2007 MySQL AB, 2008-2009 Sun Microsystems
+ All rights reserved. Use is subject to license terms.
 
- This program is free software; you can redistribute it and/or modify
- it under the terms of version 2 of the GNU General Public License as 
- published by the Free Software Foundation.
+  The MySQL Connector/J is licensed under the terms of the GPL,
+  like most MySQL Connectors. There are special exceptions to the
+  terms and conditions of the GPL as it is applied to this software,
+  see the FLOSS License Exception available on mysql.com.
 
- There are special exceptions to the terms and conditions of the GPL 
- as it is applied to this software. View the full text of the 
- exception in file EXCEPTIONS-CONNECTOR-J in the directory of this 
- software distribution.
+  This program is free software; you can redistribute it and/or
+  modify it under the terms of the GNU General Public License as
+  published by the Free Software Foundation; version 2 of the
+  License.
 
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
+  This program is distributed in the hope that it will be useful,  
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
 
- You should have received a copy of the GNU General Public License
- along with this program; if not, write to the Free Software
- Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+  02110-1301 USA
  */
 package com.mysql.jdbc;
 
@@ -56,7 +59,7 @@ public class ReplicationConnection implements Connection, PingTarget {
 		NonRegisteringDriver driver = new NonRegisteringDriver();
 
 		StringBuffer masterUrl = new StringBuffer("jdbc:mysql://");
-        StringBuffer slaveUrl = new StringBuffer("jdbc:mysql://");
+        StringBuffer slaveUrl = new StringBuffer("jdbc:mysql:loadbalance://");
 
         String masterHost = masterProperties
         	.getProperty(NonRegisteringDriver.HOST_PROPERTY_KEY);
@@ -65,13 +68,21 @@ public class ReplicationConnection implements Connection, PingTarget {
         	masterUrl.append(masterHost);
         }
  
-        String slaveHost = slaveProperties
-        	.getProperty(NonRegisteringDriver.HOST_PROPERTY_KEY);
-        	
-        if (slaveHost != null) {
-        	slaveUrl.append(slaveHost);
-        }
+        int numHosts = Integer.parseInt(slaveProperties.getProperty(
+        		NonRegisteringDriver.NUM_HOSTS_PROPERTY_KEY));
         
+        for(int i = 1; i <= numHosts; i++){
+	        String slaveHost = slaveProperties
+	        	.getProperty(NonRegisteringDriver.HOST_PROPERTY_KEY + "." + i);
+	        
+	        if (slaveHost != null) {
+	        	if(i > 1){
+	        		slaveUrl.append(',');
+	        	}
+	        	slaveUrl.append(slaveHost);
+	        }
+        }
+
         String masterDb = masterProperties
         	.getProperty(NonRegisteringDriver.DBNAME_PROPERTY_KEY);
 
@@ -2411,5 +2422,18 @@ public class ReplicationConnection implements Connection, PingTarget {
 	public void setQueryTimeoutKillsConnection(
 			boolean queryTimeoutKillsConnection) {
 		this.currentConnection.setQueryTimeoutKillsConnection(queryTimeoutKillsConnection);
+	}
+
+	public boolean hasSameProperties(Connection c) {
+		return this.masterConnection.hasSameProperties(c) && 
+			this.slavesConnection.hasSameProperties(c);
+	}
+	
+	public Properties getProperties() {
+		Properties props = new Properties();
+		props.putAll(this.masterConnection.getProperties());
+		props.putAll(this.slavesConnection.getProperties());
+		
+		return props;
 	}
 }

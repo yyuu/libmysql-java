@@ -1,5 +1,6 @@
 /*
       Copyright  2002-2007 MySQL AB, 2008 Sun Microsystems
+ All rights reserved. Use is subject to license terms.
 
       This program is free software; you can redistribute it and/or modify
       it under the terms of version 2 of the GNU General Public License as
@@ -1978,6 +1979,10 @@ class MysqlIO {
     private int statementExecutionDepth = 0;
 	private boolean useAutoSlowLog;
 
+	protected boolean shouldIntercept() {
+		return this.statementInterceptors != null;
+	}
+	
     /**
      * Send a query stored in a packet directly to the server.
      *
@@ -2007,7 +2012,7 @@ class MysqlIO {
     	try {
 	    	if (this.statementInterceptors != null) {
 	    		ResultSetInternalMethods interceptedResults =
-	    			invokeStatementInterceptorsPre(query, callingStatement);
+	    			invokeStatementInterceptorsPre(query, callingStatement, false);
 
 	    		if (interceptedResults != null) {
 	    			return interceptedResults;
@@ -2204,7 +2209,7 @@ class MysqlIO {
 
 	    		ProfilerEventHandler eventSink = ProfilerEventHandlerFactory.getInstance(this.connection);
 
-	    		if (this.queryBadIndexUsed) {
+	    		if (this.queryBadIndexUsed && this.profileSql) {
 	    			eventSink.consumeEvent(new ProfilerEvent(
 	    					ProfilerEvent.TYPE_SLOW_QUERY, "", catalog, //$NON-NLS-1$
 	    					this.connection.getId(),
@@ -2218,7 +2223,7 @@ class MysqlIO {
 	    							+profileQueryToLog));
 	    		}
 
-	    		if (this.queryNoIndexUsed) {
+	    		if (this.queryNoIndexUsed && this.profileSql) {
 	    			eventSink.consumeEvent(new ProfilerEvent(
 	    					ProfilerEvent.TYPE_SLOW_QUERY, "", catalog, //$NON-NLS-1$
 	    					this.connection.getId(),
@@ -2232,7 +2237,7 @@ class MysqlIO {
 	    							+profileQueryToLog));
 	    		}
 	    		
-	    		if (this.serverQueryWasSlow) {
+	    		if (this.serverQueryWasSlow && this.profileSql) {
 	    			eventSink.consumeEvent(new ProfilerEvent(
 	    					ProfilerEvent.TYPE_SLOW_QUERY, "", catalog, //$NON-NLS-1$
 	    					this.connection.getId(),
@@ -2275,7 +2280,7 @@ class MysqlIO {
 
 	    	if (this.statementInterceptors != null) {
 	    		ResultSetInternalMethods interceptedResults = invokeStatementInterceptorsPost(
-	    				query, callingStatement, rs);
+	    				query, callingStatement, rs, false, null);
 
 	    		if (interceptedResults != null) {
 	    			rs = interceptedResults;
@@ -2284,6 +2289,11 @@ class MysqlIO {
 
 	    	return rs;
     	} catch (SQLException sqlEx) {
+    		if (this.statementInterceptors != null) {
+	    		invokeStatementInterceptorsPost(
+	    				query, callingStatement, null, false, sqlEx); // we don't do anything with the result set in this case
+    		}
+    		
     		if (callingStatement != null) {
     			synchronized (callingStatement.cancelTimeoutMutex) {
 	    			if (callingStatement.wasCancelled) {
@@ -2308,27 +2318,27 @@ class MysqlIO {
     	}
     }
 
-    private ResultSetInternalMethods invokeStatementInterceptorsPre(String sql,
-			Statement interceptedStatement) throws SQLException {
+    ResultSetInternalMethods invokeStatementInterceptorsPre(String sql,
+			Statement interceptedStatement, boolean forceExecute) throws SQLException {
 		ResultSetInternalMethods previousResultSet = null;
 
 		Iterator interceptors = this.statementInterceptors.iterator();
 
 		while (interceptors.hasNext()) {
-			StatementInterceptor interceptor = ((StatementInterceptor) interceptors
+			StatementInterceptorV2 interceptor = ((StatementInterceptorV2) interceptors
 					.next());
 
 			boolean executeTopLevelOnly = interceptor.executeTopLevelOnly();
-			boolean shouldExecute = (executeTopLevelOnly && this.statementExecutionDepth == 1)
+			boolean shouldExecute = (executeTopLevelOnly && (this.statementExecutionDepth == 1 || forceExecute))
 					|| (!executeTopLevelOnly);
 
 			if (shouldExecute) {
 				String sqlToInterceptor = sql;
 
-				if (interceptedStatement instanceof PreparedStatement) {
-					sqlToInterceptor = ((PreparedStatement) interceptedStatement)
-							.asSql();
-				}
+				//if (interceptedStatement instanceof PreparedStatement) {
+				//	sqlToInterceptor = ((PreparedStatement) interceptedStatement)
+				//			.asSql();
+				//}
 
 				ResultSetInternalMethods interceptedResultSet = interceptor
 						.preProcess(sqlToInterceptor, interceptedStatement,
@@ -2343,30 +2353,26 @@ class MysqlIO {
 		return previousResultSet;
 	}
 
-	private ResultSetInternalMethods invokeStatementInterceptorsPost(
+	ResultSetInternalMethods invokeStatementInterceptorsPost(
 			String sql, Statement interceptedStatement,
-			ResultSetInternalMethods originalResultSet) throws SQLException {
+			ResultSetInternalMethods originalResultSet, boolean forceExecute, SQLException statementException) throws SQLException {
 		Iterator interceptors = this.statementInterceptors.iterator();
 
 		while (interceptors.hasNext()) {
-			StatementInterceptor interceptor = ((StatementInterceptor) interceptors
+			StatementInterceptorV2 interceptor = ((StatementInterceptorV2) interceptors
 					.next());
 
 			boolean executeTopLevelOnly = interceptor.executeTopLevelOnly();
-			boolean shouldExecute = (executeTopLevelOnly && this.statementExecutionDepth == 1)
+			boolean shouldExecute = (executeTopLevelOnly && (this.statementExecutionDepth == 1 || forceExecute))
 					|| (!executeTopLevelOnly);
 
 			if (shouldExecute) {
 				String sqlToInterceptor = sql;
-
-				if (interceptedStatement instanceof PreparedStatement) {
-					sqlToInterceptor = ((PreparedStatement) interceptedStatement)
-							.asSql();
-				}
-
+				
 				ResultSetInternalMethods interceptedResultSet = interceptor
 						.postProcess(sqlToInterceptor, interceptedStatement,
-								originalResultSet, this.connection);
+								originalResultSet, this.connection, this.warningCount, 
+								this.queryNoIndexUsed, this.queryBadIndexUsed, statementException);
 
 				if (interceptedResultSet != null) {
 					originalResultSet = interceptedResultSet;
@@ -2676,14 +2682,12 @@ class MysqlIO {
     }
 
 	private void setServerSlowQueryFlags() {
-		if (this.profileSql) {
-		    this.queryNoIndexUsed = (this.serverStatus &
-		        SERVER_QUERY_NO_GOOD_INDEX_USED) != 0;
-		    this.queryBadIndexUsed = (this.serverStatus &
-		        SERVER_QUERY_NO_INDEX_USED) != 0;
-		    this.serverQueryWasSlow = (this.serverStatus & 
-		    	SERVER_QUERY_WAS_SLOW) != 0;
-		}
+	    this.queryBadIndexUsed = (this.serverStatus &
+	        SERVER_QUERY_NO_GOOD_INDEX_USED) != 0;
+	    this.queryNoIndexUsed = (this.serverStatus &
+	        SERVER_QUERY_NO_INDEX_USED) != 0;
+	    this.serverQueryWasSlow = (this.serverStatus & 
+	    	SERVER_QUERY_WAS_SLOW) != 0;
 	}
 
     private void checkForOutstandingStreamingData() throws SQLException {
@@ -3555,7 +3559,7 @@ class MysqlIO {
                 if (xOpen != null && xOpen.startsWith("22")) {
                 	throw new MysqlDataTruncation(errorBuf.toString(), 0, true, false, 0, 0, errno);
                 } else {
-                	throw SQLError.createSQLException(errorBuf.toString(), xOpen, errno, getExceptionInterceptor());
+                	throw SQLError.createSQLException(errorBuf.toString(), xOpen, errno, false, getExceptionInterceptor(), this.connection);
                 }
             }
 
@@ -3568,7 +3572,7 @@ class MysqlIO {
                         SQLError.SQL_STATE_COLUMN_NOT_FOUND) +
                     ", " //$NON-NLS-1$
                      +serverErrorMessage, SQLError.SQL_STATE_COLUMN_NOT_FOUND,
-                    -1, getExceptionInterceptor());
+                    -1, false, getExceptionInterceptor(), this.connection);
             }
 
             StringBuffer errorBuf = new StringBuffer(Messages.getString(
@@ -3578,7 +3582,7 @@ class MysqlIO {
 
             throw SQLError.createSQLException(SQLError.get(
                     SQLError.SQL_STATE_GENERAL_ERROR) + ", " //$NON-NLS-1$
-                 +errorBuf.toString(), SQLError.SQL_STATE_GENERAL_ERROR, -1, getExceptionInterceptor());
+                 +errorBuf.toString(), SQLError.SQL_STATE_GENERAL_ERROR, -1, false, getExceptionInterceptor(), this.connection);
         }
     }
 

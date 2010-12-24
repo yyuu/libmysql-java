@@ -1,0 +1,11 @@
+--- mysql-connector-java-5.1.10+dfsg.orig/build.xml
++++ mysql-connector-java-5.1.10+dfsg/build.xml
+@@ -770,7 +770,7 @@
+ 	</target>
+ 
+ 
+-	<target name="compile" depends="init, compile-driver, compile-testsuite, compile.integration">
++	<target name="compile" depends="init, compile-driver, compile.integration">
+ 	</target>
+ 
+ 	<target name="compile-trace" depends="init, compile-driver-trace">

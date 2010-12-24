@@ -1,0 +1,21 @@
+Source: mysql-connector-java
+Section: java
+Priority: optional
+Maintainer: Debian Java Maintainers <pkg-java-maintainers@lists.alioth.debian.org>
+Uploaders: Arnaud Vandyck <avdyk@debian.org>, Marcus Better <marcus@better.se>, Michael Koch <konqueror@gmx.de>
+Build-Depends: debhelper (>= 7), cdbs, ant, java-gcj-compat-dev, ant-optional
+Build-Depends-Indep: openjdk-6-jdk, liblog4j1.2-java, libcommons-logging-java, junit, ant-contrib
+Standards-Version: 3.8.3
+Homepage: http://www.mysql.com/products/connector/j/
+Vcs-Svn: svn://svn.debian.org/pkg-java/trunk/mysql-connector-java
+Vcs-Browser: http://svn.debian.org/wsvn/pkg-java/trunk/mysql-connector-java/
+
+Package: libmysql-java
+Architecture: all
+Depends: default-jre-headless | java2-runtime-headless, ${misc:Depends}
+Suggests: liblog4j1.2-java, libcommons-logging-java
+Description: Java database (JDBC) driver for MySQL
+ MySQL Connector/J is a JDBC-3.0 Type 4 driver, which means that it is
+ pure Java, implements version 3.0 of the JDBC specification, and
+ communicates directly with the MySQL server using the MySQL
+ protocol.

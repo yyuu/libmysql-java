@@ -1,0 +1,154 @@
+mysql-connector-java (5.1.10+dfsg-2) unstable; urgency=low
+
+  * Fix installation of versioned jar (Closes: #549677).
+
+ -- Michael Koch <konqueror@gmx.de>  Mon, 05 Oct 2009 20:18:40 +0200
+
+mysql-connector-java (5.1.10+dfsg-1) unstable; urgency=low
+
+  * New upstream release.
+  * Build-Depends on cdbs.
+  * Made java-gcj-compat-dev a Build-Depends instead of
+    a Build-Depends-Indep.
+  * Build-Depends-Indep on openjdk-6-jdk for JDBC 4.
+  * Build-Depends on debhelper >= 7.
+  * Moved package to section 'java'.
+  * Let package Depends on default-jre-headless and alternatives.
+  * Add Depends ${misc:Depends} to libmysql-java.
+  * Fixed watch file to use a decent FTP mirror.
+  * Added automatic orig tarball creation on upstream updates.
+  * Updated Standards-Version to 3.8.3.
+  * In debian/rules always use JAVA_HOME when possible.
+
+ -- Michael Koch <konqueror@gmx.de>  Sat, 26 Sep 2009 11:22:43 +0200
+
+mysql-connector-java (5.1.6+dfsg-1) unstable; urgency=low
+
+  * New upstream release. Thanks to Eric Jensen for the hint.
+  * Added watch file.
+  * Updated Standards-Version to 3.7.3.
+  * Fixed Homepage, Vcs-Svn and Vcs-Browser fields.
+
+ -- Michael Koch <konqueror@gmx.de>  Wed, 02 Apr 2008 10:36:05 +0200
+
+mysql-connector-java (5.1.5+dfsg-2) unstable; urgency=low
+
+  * Disable JDBC4 support. Closes: #454081.
+
+ -- Michael Koch <konqueror@gmx.de>  Tue, 04 Dec 2007 01:03:48 +0100
+
+mysql-connector-java (5.1.5+dfsg-1) unstable; urgency=low
+
+  * New upstream release. Closes: #450718.
+  * Add Homepage field to debian/control.
+
+ -- Michael Koch <konqueror@gmx.de>  Fri, 30 Nov 2007 10:34:13 +0100
+
+mysql-connector-java (5.0.4+dfsg-3) unstable; urgency=low
+
+  * Delete build-stamp in clean target. Closes: #424589.
+  * Removed Wolfgang and added myself to Uploaders.
+
+ -- Michael Koch <konqueror@gmx.de>  Sun, 15 Jul 2007 23:12:02 +0200
+
+mysql-connector-java (5.0.4+dfsg-2) unstable; urgency=low
+
+  * Corrected the symlink `/usr/share/java/mysql.jar'. Thanks to Javier
+    Kohen. (Closes: #404858)
+
+ -- Marcus Better <marcus@better.se>  Fri, 29 Dec 2006 13:29:04 +0100
+
+mysql-connector-java (5.0.4+dfsg-1) unstable; urgency=low
+
+  * New upstream release. (Closes: #404153, #366808, #394878)
+    - Supports MySQL 5. (Closes: #369379)
+    - Fixes a character set mapping problem. (Closes: #387382)
+  * debian/rules: Get rid of cdbs. Install `CHANGES' file in proper place.
+  * The jar file is now named `mysql-connector-java.jar' instead of
+    `mysql.jar'. Symlinks are provided for the old names for the time
+    being.
+  * debian/control:
+    - Replace Build-Depends-Indep by Build-Depends.
+    - Add missing dependency on ant-optional.
+    - Add XS-Vcs-* fields.
+  * debian/rules: Build with java-gcj-compat-dev instead of Kaffe.
+  * Removed README.Debian since the information on supported JDK versions
+    may be outdated.
+
+ -- Marcus Better <marcus@better.se>  Fri, 22 Dec 2006 10:45:42 +0100
+
+mysql-connector-java (3.1.11-1) unstable; urgency=low
+
+  * New upstream release (closes: #338399)
+  * Removed Takashi from uploaders
+  * Removed setting of DEB_ANT_COMPILER variable as already preset in kaffe
+  * Updated build.xml patch once more to changed upstream build behaviour
+
+ -- Wolfgang Baer <WBaer@gmx.de>  Tue, 29 Nov 2005 14:07:49 +0100
+
+mysql-connector-java (3.1.10-1) unstable; urgency=low
+
+  * New upstream release
+    + Source structure changed - adapting package build to new structure
+    + Updated README.Debian-source how its repackaged
+  * libant1.6-java to ant transition
+  * Standards-Version 3.6.2 (no changes)
+  * Removed documentation as its explicitly marked as NOT GNU licensed.
+
+  * Upload sponsored by Arnaud Vandyck
+
+ -- Wolfgang Baer <WBaer@gmx.de>  Sun, 11 Sep 2005 15:35:23 +0200
+
+mysql-connector-java (3.1.7-2) unstable; urgency=low
+
+  * Move to main
+
+ -- Wolfgang Baer <WBaer@gmx.de>  Tue, 19 Apr 2005 20:28:25 +0200
+
+mysql-connector-java (3.1.7-1) unstable; urgency=low
+
+  * New upstream release (closes: #282570,#293995)
+  * Now implements JDBC 3 specification - Updated README.Debian/Descriptions
+  * Built with free tools - but stay in contrib to get it into
+    sarge asap (old release does not support mysql 4.1 features)
+    Upload to main will follow afterwards
+  * Changed build system to cdbs: build depends now on kaffe, libant1.6-java, 
+    liblog4j1.2-java, junit; Added liblog4j1.2-java as Suggests
+  * No more build depends on jars under /usr/local (closes: #262291)
+  * Patched build.xml (01_BuildXml.patch):
+    - Changed build directory property to a directory inside source tree
+    - Excluded test from testsuite which build depends on 
+      sun internal stuff (AppletRegressionTest.java)
+    - Patched javac target to use target=1.3 so it is also usable with 
+      JDK 1.3, -Xverify:none needs to be passed to the vm (see README.Debian)
+  * Standards-Version: 3.6.1 - no changes required
+  * Changed maintainer to Debian Java Maintainers as
+    requested by Takashi Okamoto for comaintaining
+  * avdyk: added Wolfgang and myself to the uploaders
+
+ -- Wolfgang Baer <WBaer@gmx.de>  Sat, 02 Apr 2005 20:30:09 +0200
+
+mysql-connector-java (3.0.9-1) unstable; urgency=low
+
+  * New upstream release
+
+ -- Takashi Okamoto <tora@debian.org>  Tue, 30 Dec 2003 22:37:53 +0900
+
+mysql-connector-java (3.0.8-1) unstable; urgency=low
+
+  * New upstream release
+
+ -- Takashi Okamoto <tora@debian.org>  Mon, 26 May 2003 10:42:20 +0900
+
+mysql-connector-java (3.0.6-1) unstable; urgency=low
+
+  * New upstream release
+
+ -- Takashi Okamoto <tora@debian.org>  Sun, 23 Feb 2003 21:38:54 +0900
+
+mysql-connector-java (2.0.14-1) unstable; urgency=low
+
+  * Initial Release.
+  * close RFP (closes: #104765)
+
+ -- Takashi Okamoto <tora@debian.org>  Sun, 10 Nov 2002 10:29:30 +0900

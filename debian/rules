@@ -1,0 +1,23 @@
+#!/usr/bin/make -f
+
+include /usr/share/cdbs/1/rules/debhelper.mk
+include /usr/share/cdbs/1/class/ant.mk
+include /usr/share/cdbs/1/rules/simple-patchsys.mk
+
+VERSION := $(shell dpkg-parsechangelog | grep ^Version: | sed 's/Version: //' | cut -f1 -d- | cut -f1 -d+)
+
+JAVA_HOME := /usr/lib/jvm/java-gcj
+JAVA6_HOME := /usr/lib/jvm/java-6-openjdk
+
+DEB_JARS := ant ant-launcher ant-junit commons-logging log4j-1.2 junit ant-contrib
+DEB_ANT_ARGS := -Dcom.mysql.jdbc.java6.javac=$(JAVA6_HOME)/bin/javac -Dcom.mysql.jdbc.java6.rtjar=$(JAVA6_HOME)/jre/lib/rt.jar
+
+install/libmysql-java::
+	install -D -m 644 build/mysql-connector-java-$(VERSION)/mysql-connector-java-$(VERSION)-bin.jar debian/libmysql-java/usr/share/java/mysql-connector-java-$(VERSION).jar
+	dh_link -plibmysql-java usr/share/java/mysql-connector-java-$(VERSION).jar usr/share/java/mysql-connector-java.jar
+	dh_link -plibmysql-java usr/share/java/mysql-connector-java-$(VERSION).jar usr/share/java/mysql-$(VERSION).jar
+	dh_link -plibmysql-java usr/share/java/mysql-$(VERSION).jar usr/share/java/mysql.jar
+
+clean::
+	rm -rf dist
+	rm -f build-stamp

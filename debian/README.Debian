@@ -1,0 +1,7 @@
+MySQL Connector/J for Debian
+----------------------------
+
+In this version the JDBC 4 support is disabled because we have no runtime
+in main currently that can compile it.
+
+ -- Michael Koch <konqueror@gmx.de>  Fri, 30 Nov 2007 10:34:13 +0100

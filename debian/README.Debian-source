@@ -1,0 +1,11 @@
+MySQL Connector/J for Debian
+----------------------------
+
+The upstream sources were modified to comply with the Debian Free
+Software Guidelines. The following changes were made:
+
+ * The third-party jars in `src/lib' were removed.
+ * The two pre-compiled JDBC driver jars (debug and release version)
+   were removed.
+
+ -- Marcus Better <marcus@better.se>  Fri, 22 Dec 2006 10:45:42 +0100

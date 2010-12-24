@@ -1,3 +1,9 @@
+mysql-connector-java (5.1.12+nmu-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- Yamashita Yuu <yamashita@geishatokyo.com>  Fri, 24 Dec 2010 17:26:12 +0900
+
 mysql-connector-java (5.1.10+dfsg-2~bpo50+1) lenny-backports; urgency=low
 
   * Rebuild for lenny-backports.

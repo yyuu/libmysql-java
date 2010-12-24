@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Debian Java Maintainers <pkg-java-maintainers@lists.alioth.debian.org>
 Uploaders: Arnaud Vandyck <avdyk@debian.org>, Marcus Better <marcus@better.se>, Michael Koch <konqueror@gmx.de>
 Build-Depends: debhelper (>= 7), cdbs, ant, java-gcj-compat-dev, ant-optional
-Build-Depends-Indep: openjdk-6-jdk, liblog4j1.2-java, libcommons-logging-java, junit, ant-contrib
+Build-Depends-Indep: sun-java6-jdk, liblog4j1.2-java, libcommons-logging-java, junit, ant-contrib
 Standards-Version: 3.8.3
 Homepage: http://www.mysql.com/products/connector/j/
 Vcs-Svn: svn://svn.debian.org/pkg-java/trunk/mysql-connector-java

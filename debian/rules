@@ -7,7 +7,7 @@ include /usr/share/cdbs/1/rules/simple-patchsys.mk
 VERSION := $(shell dpkg-parsechangelog | grep ^Version: | sed 's/Version: //' | cut -f1 -d- | cut -f1 -d+)
 
 JAVA_HOME := /usr/lib/jvm/java-gcj
-JAVA6_HOME := /usr/lib/jvm/java-6-openjdk
+JAVA6_HOME := /usr/lib/jvm/java-6-sun
 
 DEB_JARS := ant ant-launcher ant-junit commons-logging log4j-1.2 junit ant-contrib
 DEB_ANT_ARGS := -Dcom.mysql.jdbc.java6.javac=$(JAVA6_HOME)/bin/javac -Dcom.mysql.jdbc.java6.rtjar=$(JAVA6_HOME)/jre/lib/rt.jar
